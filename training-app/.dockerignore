@@ -1,0 +1,13 @@
+api/
+client/
+packages/
+docs/
+scripts/
+node_modules/
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+data/
+*.log

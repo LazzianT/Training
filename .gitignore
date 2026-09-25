@@ -1,0 +1,14 @@
+.env
+.env.*
+!.env.example
+training.sql
+node_modules/
+dist/
+build/
+coverage/
+uploads/
+data/
+*.log
+*.tsbuildinfo
+.DS_Store
+Thumbs.db
