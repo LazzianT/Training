@@ -76,7 +76,7 @@ Dokumen rencana untuk membangun ulang aplikasi Training (sebelumnya PHP/MySQL/Sk
 > - **`hris_employee`** — login + data pribadi. **Login pakai `NIP`**, password awal = `BirthDate` format **YYMMDD**, role admin = **`DepartID = 0300`** (Human Capital).
 > - **`hris_employeecareerpath`** — jabatan: `Id_CareerPath`, `NIP`, `Id_Jobtitle`, `Jobtitle`, `StartDate`, `EndDate`, `DeptCode`, `CategoryName`, `is_Archive`, `InputDate`, `DeptCodeOld`, `Id_Section`, `Id_ProdJobtitle`, `Id_Category_Old`.
 >
-> Mapping lama → baru diverifikasi saat migrasi (NONIK lama ≈ `NIP` baru).
+> Mapping legacy `NONIK` ke `NIP` sudah dikonfirmasi. Validasi remaining dilakukan saat migrasi, termasuk duplicate, format, dan kasus tidak ditemukan.
 
 ## 5. Strategi Migrasi Data → SQL Server
 

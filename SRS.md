@@ -57,8 +57,9 @@ Otorisasi ditegakkan di server pada setiap endpoint. Menyembunyikan menu di clie
 ### 3.1 Guardrail Data Existing
 
 - Tabel SQL Server yang sudah ada hanya dibaca.
-- Tabel baru aplikasi boleh ditambahkan pada namespace `training_` atau nama yang disetujui DBA.
-- Penambahan tabel baru wajib melalui schema review, review migration script, dan approval DBA.
+- Mapping legacy `NONIK` ke `NIP` sudah dikonfirmasi.
+- Tabel baru aplikasi disetujui memakai namespace `training_`.
+- Setiap penambahan tabel baru tetap wajib melalui schema review, review migration script, dan approval DBA sebelum eksekusi.
 - Aplikasi tidak menjalankan `ALTER`, `DROP`, `TRUNCATE`, `UPDATE`, `DELETE`, `INSERT`, atau `MERGE` terhadap tabel existing tanpa approval tertulis DBA.
 - Migrasi hanya menulis ke tabel target baru atau staging table.
 

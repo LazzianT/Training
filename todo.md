@@ -39,7 +39,7 @@ Sumber: `PRD.md`, `SRS.md`, `design.md`, `techstack.md`, `RECREATION_PLAN.md`.
 - [x] Verifikasi read-only access ke `hris_employeecareerpath`. Terbaca.
 - [x] Ambil sample schema legacy `schedule_creator`, `acara`, dan `ruang_acara`. Sumber tersedia di `training.sql`.
 - [x] Ambil sample schema legacy tabel feedback. Sumber tersedia di `training.sql`.
-- [ ] Petakan `NONIK` legacy ke `NIP` baru. Mapping belum divalidasi.
+- [x] Mapping legacy `NONIK` ke `NIP` sudah dikonfirmasi. Validasi format, duplicate, dan kasus tidak dilakukan saat migrasi.
 - [x] Tentukan status aktif atau inaktif employee dari sumber HR. `hris_Employee.is_Active` tersedia.
 - [ ] Tetapkan event lifecycle: draft, published, closed, archived.
 - [ ] Tetapkan batas waktu submit jawaban.
@@ -55,7 +55,7 @@ Sumber: `PRD.md`, `SRS.md`, `design.md`, `techstack.md`, `RECREATION_PLAN.md`.
 - [ ] Tetapkan timezone `Asia/Jakarta` dan locale.
 - [ ] Tetapkan browser internal minimum.
 - [ ] Tetapkan RTO, RPO, backup window, dan restore owner.
-- [ ] Sepakati acceptance test fixtures dan data masking.
+- [ ] [BLOCKED] `training.sql` mengandung data sensitif. File tetap lokal dan tidak dipublikasikan ke GitHub.
 
 **Exit:** TBD schema, auth, security, compliance, provider, PDF, dan retention yang menghalangi Phase 1 sudah diputuskan.
 
@@ -124,7 +124,9 @@ Sumber: `PRD.md`, `SRS.md`, `design.md`, `techstack.md`, `RECREATION_PLAN.md`.
 
 - [ ] Selesaikan spike Knex dan SQL Server.
 - [ ] Dokumentasikan alasan pilihan ORM.
-- [ ] Buat migration DDL SQL Server.
+- [x] Buat draft migration DDL SQL Server di `server/migrations/001_training_schema.sql`. Belum dieksekusi.
+- [x] Buat migration mapping dan validation plan di `training-app/docs/migration-plan.md`.
+- [ ] Review dan approve target tabel `training_*` oleh DBA.
 - [ ] Buat tabel `acara`.
 - [ ] Buat tabel `ruang_acara`.
 - [ ] Buat tabel `peserta_acara`.

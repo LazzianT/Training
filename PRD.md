@@ -54,7 +54,8 @@ Kriteria berikut adalah target yang harus divalidasi melalui UAT. Angka adalah t
 - QR code mengarah ke landing page pre-test dan post-test untuk acara terkait.
 - Laporan tersedia di web. Export menggunakan PDF.
 - Foto absensi dan seluruh jawaban peserta disimpan permanen.
-- Tabel SQL Server yang sudah ada bersifat read-only. Tabel baru aplikasi boleh ditambahkan pada namespace `training_` setelah schema review, review migration script, dan approval DBA. Perubahan schema atau data existing tetap membutuhkan approval DBA terpisah.
+- Mapping legacy `NONIK` ke `NIP` sudah dikonfirmasi.
+- Tabel SQL Server yang sudah ada tetap read-only. Pembuatan tabel baru dengan prefix `training_` disetujui; setiap migration tetap wajib schema review dan review DBA sebelum dieksekusi.
 
 ## 3. Asumsi Kerja
 
