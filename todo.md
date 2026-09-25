@@ -126,6 +126,7 @@ Sumber: `PRD.md`, `SRS.md`, `design.md`, `techstack.md`, `RECREATION_PLAN.md`.
 - [ ] Dokumentasikan alasan pilihan ORM.
 - [x] Buat draft migration DDL SQL Server di `server/migrations/001_training_schema.sql`. Belum dieksekusi.
 - [x] Buat migration mapping dan validation plan di `training-app/docs/migration-plan.md`.
+- [x] Pre-review safety, FK, index, answer immutability, dan rollback boundary.
 - [ ] Review dan approve target tabel `training_*` oleh DBA.
 - [ ] Buat tabel `acara`.
 - [ ] Buat tabel `ruang_acara`.
@@ -156,6 +157,15 @@ Sumber: `PRD.md`, `SRS.md`, `design.md`, `techstack.md`, `RECREATION_PLAN.md`.
 - [ ] Jalankan migration pada staging clone yang disetujui.
 
 **Exit:** Schema tervalidasi DBA, migration repeatable, dan tidak ada FK orphan pada fixture.
+
+## 3A. Migration Runner dan Dry-run
+
+- [x] Tambahkan `server/scripts/migrate-legacy.ts`.
+- [x] Default runner adalah `dry-run`.
+- [x] Dry-run membaca `training.sql`, menghitung 15 tabel dan 13 batch INSERT, serta mendeteksi field sensitif.
+- [x] Dry-run mengecek koneksi dan daftar tabel `training_*` existing.
+- [x] `apply` diblokir tanpa `MIGRATION_MODE=apply`, `DBA_APPROVED=true`, `DBA_APPROVAL_ID`, dan `DBA_APPROVED_BY`.
+- [ ] Jalankan apply setelah DBA approval dan review hasil dry-run.
 
 ## 3. Migration Data Legacy
 

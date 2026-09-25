@@ -9,7 +9,9 @@
     "typecheck": "corepack pnpm --filter @training/contracts build && corepack pnpm -r typecheck",
     "lint": "corepack pnpm exec eslint .",
     "test": "corepack pnpm -r test",
-    "audit": "corepack pnpm audit --prod"
+    "audit": "corepack pnpm audit --prod",
+    "migration:dry": "corepack pnpm --filter @training/server migration:dry",
+    "migration:apply": "corepack pnpm --filter @training/server migration:apply"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

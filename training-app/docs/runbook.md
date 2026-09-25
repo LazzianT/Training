@@ -80,3 +80,21 @@ REFRESH_TOKEN_PEPPER
 - Gunakan account least privilege dan secret manager.
 - Rotate credential discovery setelah environment selesai.
 - Backup volume upload dan database restoration harus diuji terpisah.
+
+## Legacy Migration
+
+```powershell
+corepack pnpm migration:dry
+```
+
+Default migration mode is `dry-run`. Apply is blocked unless all approval variables are set:
+
+```powershell
+$env:MIGRATION_MODE="apply"
+$env:DBA_APPROVED="true"
+$env:DBA_APPROVAL_ID="<approval-id>"
+$env:DBA_APPROVED_BY="<dba-owner>"
+corepack pnpm migration:apply
+```
+
+Never run apply against production before DBA review of `server/migrations/001_training_schema.sql` and `server/docs/migration-plan.md`.
