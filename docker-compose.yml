@@ -6,10 +6,16 @@ services:
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       PORT: 3000
-      DB_HOST: ${DB_HOST}
+      # Fail at deploy time, not at container start. An unset variable is
+      # interpolated to an empty string, which reaches the Zod schema as ""
+      # rather than undefined, so .default() never applies and the app dies on
+      # a validation dump or, for the database settings, on a silent mssql
+      # timeout. The ":?" guard turns each of those into one clear message
+      # naming the variable that is missing.
+      DB_HOST: "${DB_HOST:?set DB_HOST in the stack environment}"
       DB_PORT: ${DB_PORT:-1433}
-      DB_USER: ${DB_USER}
-      DB_PASSWORD: ${DB_PASSWORD}
+      DB_USER: "${DB_USER:?set DB_USER in the stack environment}"
+      DB_PASSWORD: "${DB_PASSWORD:?set DB_PASSWORD in the stack environment}"
       DB_NAME: ${DB_NAME:-BMC}
       DB_ENCRYPT: ${DB_ENCRYPT:-false}
       DB_TRUST_SERVER_CERTIFICATE: ${DB_TRUST_SERVER_CERTIFICATE:-true}
