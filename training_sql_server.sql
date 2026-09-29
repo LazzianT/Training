@@ -1,3 +1,16 @@
+/* =========================================================
+   Training App - Schema Migration 001 (SQL Server)
+   Target : SQL Server SVR-BMC-SQL (10.19.25.27:1433), database BMC
+   Sumber : training-app/server/migrations/001_training_schema.sql
+   Tanggal: 2026-09-28
+   Isi    : CREATE TABLE untuk 22 tabel training_* saja.
+   Tidak menyentuh tabel existing (hris_*, dll).
+   Aman untuk copas ke SSMS: dibungkus transaksi, gagal satu = rollback semua.
+   Catatan: file ini hanya DDL, tidak ada data sensitif.
+   ========================================================= */
+USE BMC;
+GO
+
 SET NOCOUNT ON;
 SET XACT_ABORT ON;
 
@@ -15,9 +28,6 @@ CREATE TABLE dbo.training_ruang_acara (
 );
 
 CREATE UNIQUE INDEX UX_training_ruang_acara_legacy_id ON dbo.training_ruang_acara (legacy_id) WHERE legacy_id IS NOT NULL;
-
-INSERT INTO dbo.training_ruang_acara (nama_ruangan)
-VALUES (N'Serbaguna'), (N'Dojo');
 
 CREATE TABLE dbo.training_acara (
     id int IDENTITY(1, 1) NOT NULL,
@@ -102,7 +112,6 @@ CREATE TABLE dbo.training_absensi (
     event_id int NOT NULL,
     participant_nip nvarchar(50) NOT NULL,
     photo_path nvarchar(1000) NOT NULL,
-    signature_data nvarchar(max) NULL,
     photo_sha256 char(64) NULL,
     captured_at datetime2(3) NOT NULL,
     created_at datetime2(3) NOT NULL CONSTRAINT DF_training_absensi_created_at DEFAULT (SYSUTCDATETIME()),
@@ -171,7 +180,6 @@ CREATE TABLE dbo.training_question_pg (
     option_d nvarchar(1000) NOT NULL,
     correct_answer char(1) NOT NULL,
     image_path nvarchar(1000) NULL,
-    image_data nvarchar(max) NULL,
     point decimal(8, 2) NOT NULL,
     legacy_id int NULL,
     created_at datetime2(3) NOT NULL CONSTRAINT DF_training_question_pg_created_at DEFAULT (SYSUTCDATETIME()),
@@ -193,7 +201,6 @@ CREATE TABLE dbo.training_question_essay (
     instructions nvarchar(max) NULL,
     answer_guide nvarchar(max) NULL,
     image_path nvarchar(1000) NULL,
-    image_data nvarchar(max) NULL,
     max_point decimal(8, 2) NULL,
     legacy_id int NULL,
     created_at datetime2(3) NOT NULL CONSTRAINT DF_training_question_essay_created_at DEFAULT (SYSUTCDATETIME()),
@@ -392,7 +399,7 @@ CREATE TABLE dbo.training_qr_access (
     CONSTRAINT UQ_training_qr_access_token UNIQUE (token_hash),
     CONSTRAINT FK_training_qr_access_event FOREIGN KEY (event_id) REFERENCES dbo.training_acara (id),
     CONSTRAINT CK_training_qr_access_counts CHECK (max_uses > 0 AND used_count >= 0 AND used_count <= max_uses),
-    CONSTRAINT CK_training_qr_access_purpose CHECK (purpose IN ('assessment', 'pre_test', 'post_test', 'feedback', 'attendance'))
+    CONSTRAINT CK_training_qr_access_purpose CHECK (purpose IN ('assessment'))
 );
 
 CREATE INDEX IX_training_qr_access_event ON dbo.training_qr_access (event_id, expires_at);
@@ -432,3 +439,12 @@ CREATE TABLE dbo.training_migration_map (
 CREATE INDEX IX_training_migration_map_status ON dbo.training_migration_map (status, source_table);
 
 COMMIT TRANSACTION;
+
+/* =========================================================
+   Verifikasi setelah eksekusi: harus mengembalikan 22 tabel.
+   =========================================================
+SELECT TABLE_NAME
+FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME LIKE 'training[_]%'
+ORDER BY TABLE_NAME;
+   ========================================================= */

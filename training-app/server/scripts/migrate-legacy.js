@@ -7,17 +7,17 @@ const mode = process.env.MIGRATION_MODE ?? 'dry-run';
 const sourcePath = resolve(process.cwd(), process.env.SOURCE_SQL_PATH ?? '../../training.sql');
 const ddlPath = resolve(process.cwd(), 'migrations/001_training_schema.sql');
 
-const countRows = (valuesBlock: string) =>
+const countRows = (valuesBlock) =>
   valuesBlock.split(/\r?\n/).filter((line) => /^\s*\(/.test(line)).length;
 
-const inspectSource = (source: string) => {
+const inspectSource = (source) => {
   const tables = [...source.matchAll(/CREATE TABLE `([^`]+)`/g)].map((match) => match[1]);
   const insertBatches = [...source.matchAll(/INSERT INTO `([^`]+)`[\s\S]*?VALUES\n([\s\S]*?);/g)].map((match) => ({
     table: match[1],
     rows: countRows(match[2]),
   }));
   const inserts = Object.entries(
-    insertBatches.reduce<Record<string, number>>((totals, batch) => {
+    insertBatches.reduce((totals, batch) => {
       totals[batch.table] = (totals[batch.table] ?? 0) + batch.rows;
       return totals;
     }, {}),
@@ -38,7 +38,9 @@ const inspectSource = (source: string) => {
 const assertApplyApproval = () => {
   const required = ['DBA_APPROVAL_ID', 'DBA_APPROVED_BY'];
   if (process.env.DBA_APPROVED !== 'true' || required.some((name) => !process.env[name])) {
-    throw new Error('Apply blocked. Require MIGRATION_MODE=apply, DBA_APPROVED=true, DBA_APPROVAL_ID, and DBA_APPROVED_BY.');
+    throw new Error(
+      'Apply blocked. Require MIGRATION_MODE=apply, DBA_APPROVED=true, DBA_APPROVAL_ID, and DBA_APPROVED_BY.',
+    );
   }
 };
 
@@ -69,7 +71,7 @@ const main = async () => {
       WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME LIKE 'training[_]%'
       ORDER BY TABLE_SCHEMA, TABLE_NAME;
     `);
-    const existingTrainingTables = metadata.recordsets[1] as Array<{ schema_name: string; table_name: string }>;
+    const existingTrainingTables = metadata.recordsets[1];
 
     if (mode === 'dry-run') {
       console.log(JSON.stringify({ mode, sourcePath, ddlPath, inventory, existingTrainingTables }, null, 2));
@@ -87,7 +89,7 @@ const main = async () => {
   }
 };
 
-main().catch((error: unknown) => {
+main().catch((error) => {
   console.error(error instanceof Error ? error.message : error);
   process.exitCode = 1;
 });
