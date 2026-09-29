@@ -7,6 +7,10 @@
 # Distribute the schema out of band, not through the repository.
 *.sql
 
+# KKP report material (methodology, UML diagrams) is local only.
+# Anchored to the repo root so training-app/docs/ stays tracked.
+/docs/
+
 node_modules/
 dist/
 build/
