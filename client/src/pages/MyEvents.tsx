@@ -5,7 +5,7 @@ import { useAuth } from '../auth/AuthContext.js';
 import { ApiRequestError } from '../api/auth.js';
 import { createEventQr, fetchAssessmentResults, fetchMyEvents, type AssessmentResults, type QrAccess } from '../api/events.js';
 
-const publicAppUrl = import.meta.env.VITE_PUBLIC_APP_URL ?? 'http://10.103.90.5:5173';
+const publicAppUrl = (import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin).replace(/\/$/, '');
 
 const Results = ({ data }: { data: AssessmentResults }) => {
   const pre = new Map(data.submissions.filter((item) => item.phase === 'pre').map((item) => [item.nip, item]));
