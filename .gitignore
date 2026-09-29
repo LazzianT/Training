@@ -1,7 +1,12 @@
 .env
 .env.*
 !.env.example
-training.sql
+
+# SQL scripts and schema DDL are kept local only. They contain internal
+# database structure and, in the case of training.sql, real employee data.
+# Distribute the schema out of band, not through the repository.
+*.sql
+
 node_modules/
 dist/
 build/
