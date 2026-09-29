@@ -25,6 +25,7 @@ corepack pnpm lint
 corepack pnpm test
 corepack pnpm build
 corepack pnpm audit --prod
+corepack pnpm --filter @training/server db:probe
 ```
 
 ## Local Docker
@@ -65,6 +66,7 @@ REFRESH_TOKEN_PEPPER
 
 - `GET /health/live`: process hidup.
 - `GET /health/ready`: `503` sampai database adapter dan storage readiness selesai.
+- `db:probe`: cek koneksi read-only ke SQL Server (identity, inventory, parameterized query, transaksi rollback). SELECT-only, tidak pernah menulis.
 
 ## Data Safety
 

@@ -1,6 +1,6 @@
 # TODO Implementasi Aplikasi Training PT BMC
 
-Status: Draft.
+Status: MVP implementation baseline updated 2026-09-28.
 Sumber: `PRD.md`, `SRS.md`, `design.md`, `techstack.md`, `RECREATION_PLAN.md`.
 
 ## Cara Pakai
@@ -41,15 +41,15 @@ Sumber: `PRD.md`, `SRS.md`, `design.md`, `techstack.md`, `RECREATION_PLAN.md`.
 - [x] Ambil sample schema legacy tabel feedback. Sumber tersedia di `training.sql`.
 - [x] Mapping legacy `NONIK` ke `NIP` sudah dikonfirmasi. Validasi format, duplicate, dan kasus tidak dilakukan saat migrasi.
 - [x] Tentukan status aktif atau inaktif employee dari sumber HR. `hris_Employee.is_Active` tersedia.
-- [ ] Tetapkan event lifecycle: draft, published, closed, archived.
+- [x] Tetapkan event lifecycle: draft, published, closed, archived.
 - [ ] Tetapkan batas waktu submit jawaban.
 - [ ] Tetapkan completion rule dan pass score sertifikat.
-- [ ] Tetapkan role login trainer atau evaluator.
-- [ ] Verifikasi field minimum trainer internal dan eksternal.
-- [ ] Tetapkan daftar lengkap aspek feedback user dan trainer.
+- [x] Tetapkan role login trainer atau evaluator.
+- [x] Verifikasi field minimum trainer internal dan eksternal.
+- [x] Tetapkan daftar lengkap aspek feedback user dan trainer.
 - [ ] Verifikasi output PDF untuk laporan.
 - [ ] Tetapkan provider WhatsApp dan template QA.
-- [ ] Finalisasi QR destination ke pre-test dan post-test.
+- [x] Finalisasi QR destination ke pre-test, post-test, feedback, dan absensi.
 - [x] Konfirmasi retention permanen foto dan jawaban.
 - [ ] Tetapkan retention feedback, audit, dan message log.
 - [ ] Tetapkan timezone `Asia/Jakarta` dan locale.
@@ -89,6 +89,46 @@ Sumber: `PRD.md`, `SRS.md`, `design.md`, `techstack.md`, `RECREATION_PLAN.md`.
 - [ ] [BLOCKED] Belum ada schema/table `training_` untuk aplikasi baru.
 - [ ] [BLOCKED] Deployment Docker belum diverifikasi karena Docker daemon belum berjalan.
 
+### MVP Implemented 2026-09-28
+
+- [x] Login HRIS dengan NIP dan BirthDate, session storage, route protection.
+- [x] Department lookup dari `MASCOSTCENTER.NamaDepartemen` melalui `Departid`.
+- [x] Authorization coordinator untuk `Departid = 0300` dan departemen HC.
+- [x] Event creation, event list filter bulan/tahun, event detail, edit, room selection.
+- [x] Internal/external trainer selection dari HRIS atau input manual.
+- [x] Participant bulk search, add, remove, invitation print layout.
+- [x] My Event scope untuk trainer dan coordinator.
+- [x] QR pre-test, post-test, feedback, dan attendance.
+- [x] Public QR access with participant NIP validation and duplicate-submit protection.
+- [x] Pre-test/post-test multiple-choice assessment with server-side scoring.
+- [x] Essay question model and per-question editor.
+- [x] Draft question sections persisted in `localStorage`, including pasted images.
+- [x] Feedback form with 14 rating aspects, radio scale 1-5, and comments.
+- [x] Online attendance signature canvas and duplicate attendance protection.
+- [x] My Event results: separate pre/post tables, improvement summary, weak-question summary.
+- [x] Responsive UI, print invitation layout, scroll handling, reduced-motion support.
+- [x] Server tests: 24 passed.
+- [x] Client production build passed.
+
+### MVP Deferred Follow-ups
+
+- [ ] [DEFERRED] Apply/review `002_assessment_workflow.sql` on the target database with DBA approval.
+- [ ] [DEFERRED] Add automated E2E coverage for QR, assessment, feedback, attendance, and results.
+- [ ] [DEFERRED] Add public attendance signature UI verification on mobile devices.
+- [ ] [DEFERRED] Add server-side PDF export; current invitation uses browser print/Save as PDF.
+- [ ] [DEFERRED] Choose WhatsApp provider and implement blast outbox worker.
+- [ ] [DEFERRED] Complete staging/UAT, backup/restore drill, and production approval.
+
+### Verifikasi Baseline 2026-09-28
+
+- Lint, typecheck, dan test lulus pada workspace `training-app/` (server: 2/2 test health).
+- `pnpm typecheck` dan `pnpm lint` hanya tersedia di workspace root `training-app/`, bukan di repo root.
+- Probe read-only `server/scripts/db-probe.ts` lulus: SQL Server 2019 Standard 15.0.2000.5, database `BMC` online, login `sa`.
+- Inventory: 638 tabel existing, 0 tabel `training_*` — namespace bebas tabrakan.
+- Parameterized query `hris_Employee` aktif: 516 rows (11ms); transaksi read-only rollback: 564 rows (19ms). Cocok dengan discovery 2026-09-25.
+- Keputusan data access layer: node-mssql raw dengan parameterized T-SQL, tanpa Knex/ORM (`docs/adr-001-data-access.md`).
+- Konfirmasi target: database tetap `BMC` di SQL Server yang shared dengan tabel `hris_*` existing. Prefix `training_` wajib dipertahankan pada semua tabel aplikasi.
+
 ### Keputusan yang Masih Dibutuhkan
 
 - [ ] Field minimum trainer eksternal.
@@ -122,8 +162,8 @@ Sumber: `PRD.md`, `SRS.md`, `design.md`, `techstack.md`, `RECREATION_PLAN.md`.
 
 ## 2. Database Schema dan Migration
 
-- [ ] Selesaikan spike Knex dan SQL Server.
-- [ ] Dokumentasikan alasan pilihan ORM.
+- [x] Selesaikan spike Knex dan SQL Server. Keputusan: node-mssql raw dengan parameterized T-SQL, tanpa Knex/ORM. Probe read-only ke `SVR-BMC-SQL`/`BMC` lulus 2026-09-28 (lihat `training-app/docs/adr-001-data-access.md`).
+- [x] Dokumentasikan alasan pilihan ORM. Tercatat pada `training-app/docs/adr-001-data-access.md`.
 - [x] Buat draft migration DDL SQL Server di `server/migrations/001_training_schema.sql`. Belum dieksekusi.
 - [x] Buat migration mapping dan validation plan di `training-app/docs/migration-plan.md`.
 - [x] Pre-review safety, FK, index, answer immutability, dan rollback boundary.
