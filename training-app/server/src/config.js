@@ -20,8 +20,10 @@ const environmentSchema = z.object({
   DB_NAME: z.string().default('BMC'),
   DB_ENCRYPT: z.enum(['true', 'false']).default('false'),
   DB_TRUST_SERVER_CERTIFICATE: z.enum(['true', 'false']).default('true'),
-  CORS_ORIGIN: z.string().default('http://localhost:5173'),
+  // Comma separated allowlist, never a wildcard: a dev server may pick 5174.
+  CORS_ORIGIN: z.string().default('http://localhost:5173,http://localhost:5174,http://10.103.90.5:5173'),
   JWT_ACCESS_SECRET: z.string().min(32).default('development-only-change-this-secret-32chars'),
+  JWT_ACCESS_TTL_MINUTES: z.coerce.number().int().positive().default(15),
   REFRESH_TOKEN_PEPPER: z.string().min(32).default('development-only-refresh-pepper-32chars'),
   UPLOAD_ROOT: z.string().default('./data/uploads'),
   MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(5 * 1024 * 1024),
@@ -29,4 +31,9 @@ const environmentSchema = z.object({
   WHATSAPP_API_KEY: z.string().default(''),
 });
 
-export const config = environmentSchema.parse(process.env);
+const parsed = environmentSchema.safeParse(process.env);
+if (!parsed.success) {
+  throw new Error(`Invalid environment: ${parsed.error.message}`);
+}
+
+export const config = parsed.data;
