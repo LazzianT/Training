@@ -37,6 +37,22 @@ export const createQrAccess = async (eventId, purpose, actorNip) => {
   return { id, purpose, token: rawToken, createdByNip: actorNip };
 };
 
+export const getAssessmentQrReadiness = async (eventId) => {
+  const { recordset } = await query(`
+    SELECT TOP 1 s.id, s.status,
+      (SELECT COUNT(*) FROM dbo.training_question_pg q WHERE q.test_set_id = s.id) AS pg_question_count
+    FROM dbo.training_test_set s
+    WHERE s.event_id = @eventId AND s.test_type IN ('pg', 'mixed')
+    ORDER BY s.id DESC;`,
+    (request) => request.input('eventId', sql.Int, eventId),
+  );
+  const test = recordset[0];
+  if (!test) return { ok: false, reason: 'TEST_NOT_CREATED' };
+  if (Number(test.pg_question_count) === 0) return { ok: false, reason: 'TEST_NO_QUESTIONS' };
+  if (test.status !== 'published') return { ok: false, reason: 'TEST_NOT_PUBLISHED' };
+  return { ok: true };
+};
+
 export const listQrAccess = async (eventId) => {
   const { recordset } = await query(`
     SELECT id, purpose, expires_at, max_uses, used_count, revoked_at, created_at

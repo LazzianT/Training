@@ -3,7 +3,7 @@ import { z } from 'zod';
 import sql from 'mssql';
 import { authenticate } from '../../middleware/authenticate.js';
 import { query } from '../../db/pool.js';
-import { addEssayQuestion, addMultipleChoiceQuestion, createQrAccess, createTestSet, deleteEmptyTestSet, deleteQuestion, getAssessmentResults, getPublicAssessment, listQuestions, listQrAccess, listTestSets, publishTestSet, resolveQrAccess, submitAttendance, submitFeedback, submitPublicAssessment } from './assessment.repository.js';
+import { addEssayQuestion, addMultipleChoiceQuestion, createQrAccess, createTestSet, deleteEmptyTestSet, deleteQuestion, getAssessmentQrReadiness, getAssessmentResults, getPublicAssessment, listQuestions, listQrAccess, listTestSets, publishTestSet, resolveQrAccess, submitAttendance, submitFeedback, submitPublicAssessment } from './assessment.repository.js';
 import { getEvent } from '../event/event.repository.js';
 
 const purpose = z.enum(['pre_test', 'post_test', 'feedback', 'attendance']);
@@ -96,6 +96,17 @@ assessmentRouter.post('/events/:id/qr', async (request, response, next) => {
   if (!parsed.success || !parsedPurpose.success) return response.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Purpose QR tidak valid.' } });
   try {
     if (!await canManage(request, response, parsed.data)) return response.status(403).json({ error: { code: 'FORBIDDEN', message: 'Tidak berwenang.' } });
+    if (['pre_test', 'post_test'].includes(parsedPurpose.data)) {
+      const readiness = await getAssessmentQrReadiness(parsed.data);
+      if (!readiness.ok) {
+        const messages = {
+          TEST_NOT_CREATED: 'Soal belum dibuat. Buat soal terlebih dahulu.',
+          TEST_NO_QUESTIONS: 'Soal belum diisi. Tambahkan minimal satu soal terlebih dahulu.',
+          TEST_NOT_PUBLISHED: 'Soal belum dipublish. Publish soal terlebih dahulu.',
+        };
+        return response.status(409).json({ error: { code: readiness.reason, message: messages[readiness.reason] } });
+      }
+    }
     const qr = await createQrAccess(parsed.data, parsedPurpose.data, response.locals.actor.nip);
     response.status(201).json({ ...qr, url: `/assessment/access/${qr.token}` });
   } catch (error) {
