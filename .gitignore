@@ -11,6 +11,9 @@
 # Anchored to the repo root so docs/ stays tracked.
 /kkp/
 
+# Documentation is kept out of the repository; the code is what is published.
+*.md
+
 # Reference screenshots kept at the repo root for the report.
 # LoginImage.jpeg and bmc2.png are byte-identical duplicates of the assets
 # in client/public/, so committing them again would only waste space.
