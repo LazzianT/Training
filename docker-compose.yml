@@ -13,9 +13,13 @@ services:
       DB_NAME: ${DB_NAME:-BMC}
       DB_ENCRYPT: ${DB_ENCRYPT:-false}
       DB_TRUST_SERVER_CERTIFICATE: ${DB_TRUST_SERVER_CERTIFICATE:-true}
-      CORS_ORIGIN: ${CORS_ORIGIN}
-      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
-      REFRESH_TOKEN_PEPPER: ${REFRESH_TOKEN_PEPPER}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3006}
+      # Fail at deploy time, not at container start. Without the ":?" guard an
+      # unset variable is substituted with an empty string, which reaches the
+      # app as "" rather than undefined, so the Zod default never applies and
+      # the process dies with a stack trace instead of a usable message.
+      JWT_ACCESS_SECRET: "${JWT_ACCESS_SECRET:?set JWT_ACCESS_SECRET in the stack environment, minimum 32 characters}"
+      REFRESH_TOKEN_PEPPER: "${REFRESH_TOKEN_PEPPER:?set REFRESH_TOKEN_PEPPER in the stack environment, minimum 32 characters}"
       UPLOAD_ROOT: /app/data/uploads
       MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-5242880}
       WHATSAPP_PROVIDER: ${WHATSAPP_PROVIDER:-}
@@ -29,6 +33,9 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      # While start_period is running a failure does not count, so a slow first
+      # connection to SQL Server cannot mark the api unhealthy before it is up.
+      start_period: 20s
 
   client:
     build:
@@ -36,7 +43,10 @@ services:
       dockerfile: client/Dockerfile
     depends_on:
       api:
-        condition: service_started
+        # nginx resolves "api" at startup and exits with [emerg] if the name
+        # does not exist yet, so wait for the api to actually be healthy
+        # rather than merely started. The healthcheck covers the DB round trip.
+        condition: service_healthy
     ports:
       - "3006:80"
 
