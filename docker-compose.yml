@@ -38,7 +38,7 @@ services:
       api:
         condition: service_started
     ports:
-      - "8080:80"
+      - "3006:80"
 
 volumes:
   upload_data:
