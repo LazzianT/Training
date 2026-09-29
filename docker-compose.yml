@@ -21,7 +21,7 @@ services:
       WHATSAPP_PROVIDER: ${WHATSAPP_PROVIDER:-}
       WHATSAPP_API_KEY: ${WHATSAPP_API_KEY:-}
     ports:
-      - "3000:3000"
+      - "3007:3000"
     volumes:
       - upload_data:/app/data/uploads
     healthcheck:
