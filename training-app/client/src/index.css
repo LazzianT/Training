@@ -1,14 +1,211 @@
 @import "tailwindcss";
 
 :root {
-  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-  color: #142333;
-  background: #f6f8fa;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: #0a2942;
+  background: #0a2942;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
 }
 
 body {
   margin: 0;
   min-width: 320px;
+}
+
+/* Lock the login gate to one screen: no scrollbar at any height. */
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  overflow: hidden;
+}
+
+body.assessment-access-page {
+  overflow: auto;
+}
+
+.invitation-sheet,
+.invitation-sheet table {
+  font-family: Tahoma, Arial, sans-serif;
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 14mm 16mm;
+  }
+
+  .invitation-page {
+    font-size: 10pt;
+  }
+
+  .invitation-header {
+    break-after: avoid;
+  }
+
+  .invitation-participants thead {
+    display: table-header-group;
+  }
+
+  .invitation-participants tr {
+    break-inside: avoid;
+  }
+}
+
+/* Paper panel, the identity surface: warm bone, a shade too quiet for white. */
+.paper {
+  background: #efeae0;
+  background-image: radial-gradient(
+    rgba(10, 41, 66, 0.07) 1px,
+    transparent 1px
+  );
+  background-size: 3px 3px;
+  background-position: 0 0;
+}
+
+/* Entrance: the gawang gate opening. 0.5s, no bounce, no fade-up cascade. */
+@keyframes gate-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 0.75rem, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes result-panel-open {
+  from {
+    opacity: 0;
+    transform: translateY(-0.35rem) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.result-panel-open {
+  animation: result-panel-open 180ms ease-out both;
+}
+
+.my-event-card {
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.my-event-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 0 rgba(10, 41, 66, 0.08);
+}
+
+.my-event-card .mt-5.flex {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.my-event-card .mt-5.flex > button {
+  min-height: 5rem;
+  text-align: left;
+  background: #fff;
+  transition: transform 180ms ease, border-color 180ms ease;
+}
+
+.my-event-card .mt-5.flex > button:hover {
+  transform: translateY(-2px);
+  border-color: #8a5a17;
+}
+
+@media (min-width: 640px) {
+  .my-event-card .mt-5.flex {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.sidebar-context {
+  animation: gate-rise 280ms ease-out both;
+}
+
+.eyebrow {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #55697c;
+}
+
+.metric {
+  margin-top: 0.5rem;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #0a2942;
+}
+
+.section-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #0a2942;
+}
+
+.section-help {
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: #55697c;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .result-panel-open,
+  .my-event-card,
+  .sidebar-context {
+    animation: none;
+    transition: none;
+  }
+}
+
+@keyframes gate-slide {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-1.75rem, 0, 0);
+  }
+}
+
+@keyframes gate-fill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.rise {
+  animation: gate-rise 0.5s cubic-bezier(0.2, 0, 0, 1) backwards;
+}
+
+.slide {
+  animation: gate-slide 0.5s cubic-bezier(0.2, 0, 0, 1) backwards;
+}
+
+.fill {
+  animation: gate-fill 0.9s linear infinite;
+  transform-origin: left;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
