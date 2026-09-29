@@ -147,7 +147,7 @@ const TARGETS = [
   const occupied = TARGETS.filter((table, index) => Number(counts.recordset[0][`c${index}`]) > 0);
   if (occupied.length > 0) {
     console.error('Import dibatalkan. Tabel target sudah berisi data:');
-    occupied.forEach((table, index) => console.error(`  ${table}: ${counts.recordset[0][`c${TARGETS.indexOf(table)}`]}`));
+    occupied.forEach((table) => console.error(`  ${table}: ${counts.recordset[0][`c${TARGETS.indexOf(table)}`]}`));
     console.error('Kosongkan dulu secara sengaja bila memang ingin import ulang.');
     await closeDatabase();
     process.exit(1);

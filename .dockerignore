@@ -1,0 +1,24 @@
+.git/
+node_modules/
+**/node_modules/
+**/dist/
+**/coverage/
+.pnpm-store/
+
+.env
+.env.*
+!.env.example
+
+# Local-only material: never ship it into an image layer.
+kkp/
+docs/
+*.sql
+*.log
+.freebuff/
+
+# Reference screenshots kept at the repo root for the report.
+# The application assets under client/public/ are deliberately not listed.
+bmc2.png
+image.png
+LoginImage.jpeg
+referencesLogin.png

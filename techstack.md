@@ -38,7 +38,7 @@ Versi exact belum dikunci karena package availability, Node runtime, dan deploym
 ## 3. Arsitektur Repository
 
 ```text
-training-app/
+<repo root>/
 ├── client/
 │   ├── src/
 │   │   ├── api/

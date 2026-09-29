@@ -121,8 +121,8 @@ Sumber: `PRD.md`, `SRS.md`, `design.md`, `techstack.md`, `RECREATION_PLAN.md`.
 
 ### Verifikasi Baseline 2026-09-28
 
-- Lint, typecheck, dan test lulus pada workspace `training-app/` (server: 2/2 test health).
-- `pnpm typecheck` dan `pnpm lint` hanya tersedia di workspace root `training-app/`, bukan di repo root.
+- Lint, typecheck, dan test lulus pada workspace root repository (server: 3 file test, 24 test lulus).
+- `pnpm typecheck` dan `pnpm lint` dijalankan dari repo root.
 - Probe read-only `server/scripts/db-probe.ts` lulus: SQL Server 2019 Standard 15.0.2000.5, database `BMC` online, login `sa`.
 - Inventory: 638 tabel existing, 0 tabel `training_*` — namespace bebas tabrakan.
 - Parameterized query `hris_Employee` aktif: 516 rows (11ms); transaksi read-only rollback: 564 rows (19ms). Cocok dengan discovery 2026-09-25.
@@ -143,7 +143,7 @@ Sumber: `PRD.md`, `SRS.md`, `design.md`, `techstack.md`, `RECREATION_PLAN.md`.
 
 ## 1. Foundation Repository
 
-- [x] Buat workspace root `training-app/`.
+- [x] Buat workspace root repository (client, server, packages/contracts berada di root).
 - [x] Inisialisasi pnpm workspace.
 - [x] Tambahkan `client`, `server`, dan `packages/contracts`.
 - [x] Tambahkan TypeScript strict config.
@@ -162,10 +162,10 @@ Sumber: `PRD.md`, `SRS.md`, `design.md`, `techstack.md`, `RECREATION_PLAN.md`.
 
 ## 2. Database Schema dan Migration
 
-- [x] Selesaikan spike Knex dan SQL Server. Keputusan: node-mssql raw dengan parameterized T-SQL, tanpa Knex/ORM. Probe read-only ke `SVR-BMC-SQL`/`BMC` lulus 2026-09-28 (lihat `training-app/docs/adr-001-data-access.md`).
-- [x] Dokumentasikan alasan pilihan ORM. Tercatat pada `training-app/docs/adr-001-data-access.md`.
+- [x] Selesaikan spike Knex dan SQL Server. Keputusan: node-mssql raw dengan parameterized T-SQL, tanpa Knex/ORM. Probe read-only ke `SVR-BMC-SQL`/`BMC` lulus 2026-09-28 (lihat `docs/adr-001-data-access.md`).
+- [x] Dokumentasikan alasan pilihan ORM. Tercatat pada `docs/adr-001-data-access.md`.
 - [x] Buat draft migration DDL SQL Server di `server/migrations/001_training_schema.sql`. Belum dieksekusi.
-- [x] Buat migration mapping dan validation plan di `training-app/docs/migration-plan.md`.
+- [x] Buat migration mapping dan validation plan di `docs/migration-plan.md`.
 - [x] Pre-review safety, FK, index, answer immutability, dan rollback boundary.
 - [ ] Review dan approve target tabel `training_*` oleh DBA.
 - [ ] Buat tabel `acara`.

@@ -8,10 +8,19 @@
 *.sql
 
 # KKP report material (methodology, UML diagrams) is local only.
-# Anchored to the repo root so training-app/docs/ stays tracked.
-/docs/
+# Anchored to the repo root so docs/ stays tracked.
+/kkp/
+
+# Reference screenshots kept at the repo root for the report.
+# LoginImage.jpeg and bmc2.png are byte-identical duplicates of the assets
+# in client/public/, so committing them again would only waste space.
+LoginImage.jpeg
+bmc2.png
+image.png
+referencesLogin.png
 
 node_modules/
+.pnpm-store/
 dist/
 build/
 coverage/

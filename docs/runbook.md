@@ -39,7 +39,7 @@ docker compose --env-file .env up -d
 ## Portainer Deployment
 
 1. Create Stack dari Git repository `LazzianT/Training`.
-2. Set Compose path `training-app/docker-compose.yml`.
+2. Set Compose path `docker-compose.yml`.
 3. Set branch `main` setelah initial push, atau tag immutable yang disetujui.
 4. Tambahkan Stack Environment Variables dari secret manager/Portainer UI.
 5. Jangan menaruh credential di Git atau Stack definition.

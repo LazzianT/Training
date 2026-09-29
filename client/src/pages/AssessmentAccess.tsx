@@ -14,7 +14,6 @@ export const AssessmentAccess = () => {
   const [assessment, setAssessment] = useState<Assessment | null>(null);
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [submitted, setSubmitted] = useState(false);
-  const [feedbackScore, setFeedbackScore] = useState('5');
   const [feedbackComment, setFeedbackComment] = useState('');
   const [feedbackScores, setFeedbackScores] = useState<Record<string, string>>(() => Object.fromEntries(FEEDBACK_ASPECTS.map((item) => [item.code, '5'])));
 

@@ -69,7 +69,6 @@ export const parseDump = (sql) => {
         }
         if (ch === ')') {
           values.push(field);
-          field = '';
           i += 1;
           break;
         }

@@ -94,7 +94,7 @@ Dokumen rencana untuk membangun ulang aplikasi Training (sebelumnya PHP/MySQL/Sk
 ## 6. Arsitektur Folder Baru (monorepo sederhana)
 
 ```
-training-app/
+<repo root>/
 ├── client/                 # React + Vite + Tailwind
 │   ├── src/
 │   │   ├── components/
