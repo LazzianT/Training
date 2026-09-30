@@ -5,7 +5,7 @@ import { EVENT_STATUSES, EVENT_STATUS_LABEL } from '@training/contracts';
 import { useAuth } from '../auth/AuthContext.js';
 import { fetchEvents } from '../api/events.js';
 import { ApiRequestError } from '../api/auth.js';
-import { EmptyState, inputClass, selectClass } from '../components/ui.js';
+import { EmptyState, inputClass, selectClass } from '../components/ui/index.js';
 import { StatusBadge } from '../components/StatusBadge.js';
 import { dayNumber, monthShort, relativeDay, timeRange } from '../lib/date.js';
 

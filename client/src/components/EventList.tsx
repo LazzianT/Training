@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import type { DashboardEvent } from '@training/contracts';
-import { EmptyState } from './ui.js';
+import { EmptyState } from './ui/index.js';
 import { daysFromToday, isToday, monthShort, relativeDay, timeRange } from '../lib/date.js';
 
 type EventListProps = {

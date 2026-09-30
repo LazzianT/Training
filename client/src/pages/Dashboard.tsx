@@ -6,7 +6,7 @@ import { ApiRequestError } from '../api/auth.js';
 import { ParetoChart } from '../components/ParetoChart.js';
 import { EventList } from '../components/EventList.js';
 import { TrainingCalendar } from '../components/TrainingCalendar.js';
-import { Panel, SkeletonPanel, SkeletonTile, StatTile } from '../components/ui.js';
+import { Panel, SkeletonPanel, SkeletonTile, StatTile } from '../components/ui/index.js';
 
 const MONTHS = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',

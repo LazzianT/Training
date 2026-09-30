@@ -12,7 +12,7 @@ import {
   type AssessmentResults,
   type QrAccess,
 } from '../api/events.js';
-import { ActionBar, EmptyState, Panel, Readiness, StatTile, inputClass } from '../components/ui.js';
+import { ActionBar, EmptyState, Panel, Readiness, StatTile, inputClass } from '../components/ui/index.js';
 import { StatusBadge } from '../components/StatusBadge.js';
 import { Modal } from '../components/Modal.js';
 import { CopyButton } from '../components/Toast.js';

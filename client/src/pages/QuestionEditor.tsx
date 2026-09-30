@@ -15,7 +15,7 @@ import { ApiRequestError } from '../api/auth.js';
 import { useConfirm } from '../components/ConfirmDialog.js';
 import { useToast } from '../components/Toast.js';
 import { OptionEditor } from '../components/OptionEditor.js';
-import { Button, Field, Panel, Segmented, inputClass, textareaClass } from '../components/ui.js';
+import { Button, Field, Panel, Segmented, inputClass, textareaClass } from '../components/ui/index.js';
 
 type Draft = {
   type: 'pg' | 'essay';

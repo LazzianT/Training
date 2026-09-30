@@ -7,7 +7,7 @@ import {
   type EmployeeTraining,
 } from '../api/events.js';
 import { useAuth } from '../auth/AuthContext.js';
-import { Distribution, EmptyState, StatTile, inputClass } from '../components/ui.js';
+import { Distribution, EmptyState, StatTile, inputClass } from '../components/ui/index.js';
 import { Modal } from '../components/Modal.js';
 
 type SortKey = 'nip' | 'name' | 'departmentName' | 'trainingCount';

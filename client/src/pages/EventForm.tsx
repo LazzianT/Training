@@ -15,7 +15,7 @@ import {
   inputClass,
   selectClass,
   textareaClass,
-} from '../components/ui.js';
+} from '../components/ui/index.js';
 import { longDate, timeRange } from '../lib/date.js';
 
 type Errors = Record<string, string | undefined>;

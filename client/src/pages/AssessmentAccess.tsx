@@ -6,7 +6,7 @@ import { ChoiceGroup } from '../components/ChoiceGroup.js';
 import { ProgressBar, RatingScale } from '../components/RatingScale.js';
 import { SignaturePad } from '../components/SignaturePad.js';
 import { useConfirm } from '../components/ConfirmDialog.js';
-import { Button, Field, inputClass, textareaClass } from '../components/ui.js';
+import { Button, Field, inputClass, textareaClass } from '../components/ui/index.js';
 
 type Purpose = 'pre_test' | 'post_test' | 'feedback' | 'attendance';
 type Access = { eventId: number; purpose: Purpose; title: string; date: string; room: string | null; expiresAt: string };

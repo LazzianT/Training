@@ -6,9 +6,9 @@ import { useAuth } from '../auth/AuthContext.js';
 import { addParticipants, fetchEvent, removeParticipant, updateEvent } from '../api/events.js';
 import { suggestEmployeesForTraining } from '../api/employees.js';
 import { ApiRequestError } from '../api/auth.js';
-import { Button, Field, Panel, inputClass, selectClass, textareaClass } from '../components/ui.js';
+import { Button, Field, Panel, inputClass, selectClass, textareaClass } from '../components/ui/index.js';
 import { StatusBadge } from '../components/StatusBadge.js';
-import { EmptyState } from '../components/ui.js';
+import { EmptyState } from '../components/ui/index.js';
 import { useConfirm } from '../components/ConfirmDialog.js';
 
 const checkboxClass =

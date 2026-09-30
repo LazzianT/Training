@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import type { DashboardEvent } from '@training/contracts';
 import { EventList } from './EventList.js';
-import { EmptyState } from './ui.js';
+import { EmptyState } from './ui/index.js';
 import { dateKey, longDate, todayKey } from '../lib/date.js';
 const WEEKDAYS = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
 const MONTH_LABELS = [
