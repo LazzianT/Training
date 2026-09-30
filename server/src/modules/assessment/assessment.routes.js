@@ -70,7 +70,13 @@ assessmentRouter.post('/access/:token/attendance', async (request, response, nex
     const result = await submitAttendance(request.params.token, body.data.nip, body.data.signatureData);
     if (!result || result.reason) return response.status(409).json({ error: { code: result?.reason ?? 'NOT_ELIGIBLE', message: result?.reason === 'PARTICIPANT_NOT_FOUND' ? 'NIP tidak terdaftar sebagai peserta event ini.' : result?.reason === 'ALREADY_SUBMITTED' ? 'Absensi Anda sudah pernah dikirim.' : 'QR absensi tidak berlaku.' } });
     response.status(201).json(result);
-  } catch (error) { next(error); }
+  } catch (error) {
+    if (error?.number === 2601 || error?.number === 2627) return response.status(409).json({ error: { code: 'ALREADY_SUBMITTED', message: 'Absensi Anda sudah pernah dikirim.' } });
+    if (error?.number === 547) return response.status(409).json({ error: { code: 'PARTICIPANT_NOT_FOUND', message: 'Data peserta tidak cocok dengan event ini.' } });
+    if (error?.number === 207 || error?.number === 208) return response.status(503).json({ error: { code: 'ATTENDANCE_SCHEMA_NOT_READY', message: 'Database attendance belum diperbarui. Jalankan migration assessment.' } });
+    if (error?.number === 8152 || error?.number === 2628) return response.status(413).json({ error: { code: 'SIGNATURE_TOO_LARGE', message: 'Tanda tangan terlalu besar. Hapus lalu buat tanda tangan yang lebih sederhana.' } });
+    next(error);
+  }
 });
 
 assessmentRouter.use(authenticate);

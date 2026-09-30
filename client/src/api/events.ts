@@ -43,6 +43,16 @@ export const fetchEvents = (token: string, year: number, month: number, signal?:
 export const fetchMyEvents = (token: string, signal?: AbortSignal) =>
   call<EventSummary[]>('/api/events/my', { headers: authHeaders(token), signal });
 
+export type EmployeeMonitoring = { nip: string; name: string; departId: string | null; departmentName: string | null; trainingCount: number };
+
+export const fetchEmployeeMonitoring = (token: string, query = '', signal?: AbortSignal) =>
+  call<EmployeeMonitoring[]>(`/api/employees/monitoring?q=${encodeURIComponent(query)}&limit=200`, { headers: authHeaders(token), signal });
+
+export type EmployeeTraining = { id: number; title: string; date: string; status: string; room: string | null; trainer: string | null; trainerType: string | null; attended: boolean; capturedAt: string | null };
+
+export const fetchEmployeeTraining = (token: string, nip: string, signal?: AbortSignal) =>
+  call<EmployeeTraining[]>(`/api/employees/monitoring/${encodeURIComponent(nip)}/trainings`, { headers: authHeaders(token), signal });
+
 export const createEvent = (token: string, body: CreateEventRequest) =>
   call<{ id: number }>('/api/events', {
     method: 'POST',
@@ -104,6 +114,7 @@ export const deleteQuestion = (token: string, testSetId: number, question: Saved
 export type AssessmentResults = {
   submissions: { phase: string; nip: string; name: string | null; status: string; score: number; totalScore: number; percentage: number | null }[];
   questionStats: { phase: string; number: number; text: string; answered: number; wrong: number; wrongPercentage: number }[];
+  attendance: { nip: string; name: string | null; attended: boolean; capturedAt: string | null }[];
 };
 
 export const fetchAssessmentResults = (token: string, eventId: number) =>

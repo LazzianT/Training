@@ -34,7 +34,7 @@ export const DashboardLayout = ({ children }: { children: ReactNode }) => {
 
   const employee = session?.employee;
   const nav = employee?.departId === '0300'
-    ? [...NAV, { label: 'My Event', to: '/my-events' }]
+    ? [...NAV, { label: 'Monitoring Karyawan', to: '/employee-monitoring' }, { label: 'My Event', to: '/my-events' }]
     : employee?.isCoordinator || employee?.isEventTrainer
       ? [{ label: 'My Event', to: '/my-events' }]
       : [];

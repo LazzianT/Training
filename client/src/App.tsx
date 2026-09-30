@@ -11,6 +11,7 @@ import { MyEvents } from './pages/MyEvents.js';
 import { AssessmentAccess } from './pages/AssessmentAccess.js';
 import { QuestionEditor } from './pages/QuestionEditor.js';
 import { Login } from './pages/Login.js';
+import { EmployeeMonitoring } from './pages/EmployeeMonitoring.js';
 
 const RequireAuth = ({ children }: { children: ReactElement }) => {
   const { session } = useAuth();
@@ -30,6 +31,7 @@ export const App = () => (
     <Route path="/login" element={<Login />} />
     <Route path="/assessment/access/:token" element={<AssessmentAccess />} />
     <Route path="/dashboard" element={protectedPage(<Dashboard />)} />
+    <Route path="/employee-monitoring" element={protectedPage(<EmployeeMonitoring />)} />
     <Route path="/my-events" element={protectedPage(<MyEvents />)} />
     <Route path="/my-events/:eventId/questions" element={protectedPage(<QuestionEditor />)} />
   <Route path="/events" element={protectedPage(<EventList />)} />
