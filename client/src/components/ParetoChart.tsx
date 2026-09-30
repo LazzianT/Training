@@ -25,9 +25,19 @@ export const ParetoChart = ({ data, hasData }: Props) => {
 
   if (!hasData) {
     return (
-      <div className="flex min-h-[16rem] flex-col items-center justify-center gap-2 border border-dashed border-[#0A2942]/20 px-6 text-center">
-        <p className="text-[14.5px] font-semibold text-[#0A2942]">Belum ada training tercatat</p>
-        <p className="max-w-sm text-[13px] leading-relaxed text-[#55697C]">
+      <div className="flex min-h-[16rem] flex-col items-center justify-center gap-2 border border-dashed border-slate-200 px-6 text-center">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          className="h-6 w-6 text-slate-300"
+          aria-hidden="true"
+        >
+          <path d="M4 19V9M10 19V5M16 19v-7M22 19H2" strokeLinecap="square" />
+        </svg>
+        <p className="mt-1 text-sm font-semibold text-slate-900">Belum ada training tercatat</p>
+        <p className="max-w-sm text-xs leading-relaxed text-slate-500">
           Diagram muncul setelah ada acara yang tersimpan di tabel training. Tidak ada data yang
           ditampilkan sebagai perkiraan.
         </p>
@@ -50,15 +60,15 @@ export const ParetoChart = ({ data, hasData }: Props) => {
               x2={W - PAD.right}
               y1={yLine(value)}
               y2={yLine(value)}
-              stroke="#0A2942"
-              strokeOpacity={value === 0 ? 0.28 : 0.08}
+              stroke="#0f172a"
+              strokeOpacity={value === 0 ? 0.2 : 0.07}
               strokeWidth="1"
             />
             <text
               x={W - PAD.right + 8}
               y={yLine(value) + 3.5}
               fontSize="10"
-              fill="#55697C"
+              fill="#64748b"
               textAnchor="start"
             >
               {value}%
@@ -75,16 +85,16 @@ export const ParetoChart = ({ data, hasData }: Props) => {
               y={yBar(point.trainingCount)}
               width={barW}
               height={Math.max(height, 0)}
-              fill="#0A2942"
-              fillOpacity="0.78"
+              fill="#0f172a"
+              fillOpacity="0.85"
             />
           );
         })}
 
-        <path d={line} fill="none" stroke="#C8892F" strokeWidth="2" strokeLinejoin="round" />
+        <path d={line} fill="none" stroke="#2563eb" strokeWidth="2" strokeLinejoin="round" />
 
         {data.map((point, index) => (
-          <circle key={point.month} cx={x(index)} cy={yLine(point.cumulativePercent)} r="2.6" fill="#C8892F" />
+          <circle key={point.month} cx={x(index)} cy={yLine(point.cumulativePercent)} r="2.6" fill="#2563eb" />
         ))}
 
         {data.map((point, index) => (
@@ -93,7 +103,7 @@ export const ParetoChart = ({ data, hasData }: Props) => {
             x={x(index)}
             y={H - PAD.bottom + 15}
             fontSize="9.5"
-            fill="#55697C"
+            fill="#64748b"
             textAnchor="middle"
           >
             {point.label}
@@ -107,7 +117,7 @@ export const ParetoChart = ({ data, hasData }: Props) => {
               x={x(index)}
               y={yBar(point.trainingCount) - 6}
               fontSize="10"
-              fill="#0A2942"
+              fill="#0f172a"
               textAnchor="middle"
             >
               {point.trainingCount}
@@ -116,13 +126,13 @@ export const ParetoChart = ({ data, hasData }: Props) => {
         ))}
       </svg>
 
-      <figcaption className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-[12.5px] text-[#55697C]">
+      <figcaption className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-xs text-slate-500">
         <span className="inline-flex items-center gap-2">
-          <span aria-hidden="true" className="block h-2.5 w-4 bg-[#0A2942]/78" />
+          <span aria-hidden="true" className="block h-2.5 w-4 bg-slate-900" />
           Jumlah training per bulan
         </span>
         <span className="inline-flex items-center gap-2">
-          <span aria-hidden="true" className="block h-0.5 w-4 bg-[#C8892F]" />
+          <span aria-hidden="true" className="block h-0.5 w-4 bg-blue-600" />
           Akumulasi persen
         </span>
       </figcaption>

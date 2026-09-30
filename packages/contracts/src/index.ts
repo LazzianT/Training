@@ -39,6 +39,20 @@ export type LoginResponse = {
   employee: EmployeeProfile;
 };
 
+export type DashboardEvent = {
+  id: number;
+  judul: string;
+  /** YYYY-MM-DD */
+  tgl: string;
+  /** HH:MM:SS */
+  waktuMulai: string;
+  /** HH:MM:SS */
+  waktuSelesai: string;
+  ruangNama: string | null;
+  status: EventStatus;
+  pesertaCount: number;
+};
+
 export type DashboardSummary = {
   period: { year: number; month: number };
   month: {
@@ -53,6 +67,12 @@ export type DashboardSummary = {
     totalTrainings: number;
     certificatesIssued: number;
   };
+  /** Up to five, newest first, strictly before today. */
+  recentEvents: DashboardEvent[];
+  /** Today through the next seven days inclusive, oldest first. */
+  upcomingEvents: DashboardEvent[];
+  /** Every event inside the selected period, oldest first. Feeds the calendar. */
+  monthEvents: DashboardEvent[];
   /** Twelve months, oldest first, zero filled so the axis never lies about gaps. */
   pareto: { month: string; label: string; trainingCount: number; cumulativePercent: number }[];
 };

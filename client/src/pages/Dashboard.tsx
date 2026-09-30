@@ -1,25 +1,20 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import type { DashboardSummary } from '@training/contracts';
 import { useAuth } from '../auth/AuthContext.js';
 import { fetchSummary } from '../api/dashboard.js';
 import { ApiRequestError } from '../api/auth.js';
 import { ParetoChart } from '../components/ParetoChart.js';
+import { EventList } from '../components/EventList.js';
+import { TrainingCalendar } from '../components/TrainingCalendar.js';
+import { Panel, SkeletonPanel, SkeletonTile, StatTile } from '../components/ui.js';
 
 const MONTHS = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
 ];
 
-const Tile = ({ label, value, unit, note }: { label: string; value: string; unit?: string; note?: string }) => (
-  <div className="flex flex-col gap-1 border-t-2 border-[#0A2942] bg-white/55 px-4 py-4">
-    <p className="text-[11.5px] font-semibold tracking-[0.13em] uppercase text-[#55697C]">{label}</p>
-    <p className="text-[2rem] leading-none font-semibold text-[#0A2942] tabular-nums">
-      {value}
-      {unit && <span className="ml-1 text-[15px] font-medium text-[#55697C]">{unit}</span>}
-    </p>
-    {note && <p className="text-[12px] text-[#55697C]">{note}</p>}
-  </div>
-);
+const selectClass =
+  'h-9 border border-slate-300 bg-white px-2.5 text-sm text-slate-900 outline-none transition duration-150 hover:border-slate-400 focus-visible:border-slate-900 focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2';
 
 export const Dashboard = () => {
   const { session, signOut } = useAuth();
@@ -56,10 +51,10 @@ export const Dashboard = () => {
 
   return (
     <>
-      <header className="flex flex-wrap items-end justify-between gap-4">
+      <header className="flex flex-wrap items-end justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
-          <h1 className="text-[1.75rem] leading-tight font-semibold text-[#0A2942]">Ringkasan</h1>
-          <p className="mt-1.5 text-[14px] text-[#55697C]">
+          <h1 className="text-2xl font-semibold tracking-[-0.04em] text-slate-900 sm:text-3xl">Ringkasan</h1>
+          <p className="mt-1.5 text-sm text-slate-500">
             {session?.employee.name ? `${session.employee.name}, ` : ''}periode {monthLabel}
           </p>
         </div>
@@ -72,7 +67,7 @@ export const Dashboard = () => {
             id="month-select"
             value={month}
             onChange={(event) => setMonth(Number(event.target.value))}
-            className="border-0 border-b border-[#0A2942]/30 bg-transparent py-1.5 pr-6 text-[14px] text-[#0A2942] focus:border-[#8A5A17] focus:ring-0 focus:outline-none"
+            className={selectClass}
           >
             {MONTHS.map((name, index) => (
               <option key={name} value={index + 1}>
@@ -87,7 +82,7 @@ export const Dashboard = () => {
             id="year-select"
             value={year}
             onChange={(event) => setYear(Number(event.target.value))}
-            className="border-0 border-b border-[#0A2942]/30 bg-transparent py-1.5 pr-6 text-[14px] text-[#0A2942] focus:border-[#8A5A17] focus:ring-0 focus:outline-none"
+            className={selectClass}
           >
             {[now.getFullYear(), now.getFullYear() - 1, now.getFullYear() - 2].map((value) => (
               <option key={value} value={value}>
@@ -99,82 +94,136 @@ export const Dashboard = () => {
       </header>
 
       {error && (
-        <div
-          role="alert"
-          className="mt-6 border-l-2 border-[#B42318] bg-[#B42318]/8 py-2.5 pl-3.5 pr-3 text-[13.5px] text-[#8A1C14]"
-        >
+        <div role="alert" className="mt-6 border border-red-500 bg-red-50 px-3 py-2.5 text-sm text-red-700">
           {error}
         </div>
       )}
 
       {loading && !data ? (
-        <div className="mt-8 grid gap-px bg-[#0A2942]/12 sm:grid-cols-2 lg:grid-cols-4">
-          {Array.from({ length: 4 }, (_, index) => (
-            <div key={index} className="bg-[#EFEAE0] px-4 py-4">
-              <div className="h-3 w-24 bg-[#0A2942]/10" />
-              <div className="mt-3 h-8 w-16 bg-[#0A2942]/10" />
-            </div>
-          ))}
-        </div>
+        <>
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {Array.from({ length: 4 }, (_, index) => (
+              <SkeletonTile key={index} />
+            ))}
+          </div>
+          <div className="mt-8">
+            <SkeletonPanel rows={3} />
+          </div>
+          <div className="mt-8">
+            <SkeletonPanel rows={4} />
+          </div>
+        </>
       ) : data ? (
         <>
-          <section id="ringkasan" className="mt-8 scroll-mt-6">
-            <div className="grid gap-px bg-[#0A2942]/12 sm:grid-cols-2 lg:grid-cols-4">
-              <Tile label="Training bulan ini" value={String(data.month.trainingCount)} unit="acara" />
-              <Tile
-                label="Karyawan terlatih"
-                value={String(data.month.trainedEmployees)}
-                unit="orang"
-                note={`${MONTHS[month - 1]} ${year}`}
-              />
-              <Tile
-                label="Rating rata-rata"
-                value={data.month.averageScore === null ? '-' : data.month.averageScore.toFixed(2)}
-                unit={data.month.averageScore === null ? undefined : '/ 5'}
-                note={
-                  data.month.feedbackCount === 0
-                    ? 'Belum ada feedback'
-                    : `Dari ${data.month.feedbackCount} jawaban`
-                }
-              />
-              <Tile
-                label="Sertifikat terbit"
-                value={String(data.master.certificatesIssued)}
-                unit="sertifikat"
-                note="Sepanjang riwayat"
-              />
-            </div>
+          <section
+            id="ringkasan"
+            className="enter-section mt-6 grid scroll-mt-6 gap-4 sm:grid-cols-2 lg:grid-cols-4"
+            style={{ '--enter-delay': '0ms' } as CSSProperties}
+          >
+            <StatTile label="Training bulan ini" value={String(data.month.trainingCount)} unit="acara" />
+            <StatTile
+              label="Karyawan terlatih"
+              value={String(data.month.trainedEmployees)}
+              unit="orang"
+              note={`${MONTHS[month - 1]} ${year}`}
+            />
+            <StatTile
+              label="Rating rata-rata"
+              value={data.month.averageScore === null ? '-' : data.month.averageScore.toFixed(2)}
+              unit={data.month.averageScore === null ? undefined : '/ 5'}
+              note={
+                data.month.feedbackCount === 0
+                  ? 'Belum ada feedback'
+                  : `Dari ${data.month.feedbackCount} jawaban`
+              }
+            />
+            <StatTile
+              label="Sertifikat terbit"
+              value={String(data.master.certificatesIssued)}
+              unit="sertifikat"
+              note="Sepanjang riwayat"
+            />
           </section>
 
-          <section id="master" className="mt-10 scroll-mt-6">
-            <h2 className="text-[13px] font-semibold tracking-[0.14em] uppercase text-[#55697C]">
-              Master Data
-            </h2>
-            <dl className="mt-4 grid gap-px bg-[#0A2942]/12 sm:grid-cols-3">
-              {[
-                ['Karyawan aktif (HR)', data.master.activeEmployees, 'orang'],
-                ['Ruang acara aktif', data.master.activeRooms, 'ruang'],
-                ['Total acara', data.master.totalTrainings, 'acara'],
-              ].map(([label, value, unit]) => (
-                <div key={String(label)} className="flex items-baseline justify-between bg-[#EFEAE0] px-4 py-3.5">
-                  <dt className="text-[13.5px] text-[#55697C]">{label}</dt>
-                  <dd className="text-[17px] font-semibold text-[#0A2942] tabular-nums">
-                    {String(value)}
-                    <span className="ml-1 text-[12px] font-normal text-[#55697C]">{unit}</span>
-                  </dd>
-                </div>
-              ))}
-            </dl>
+          <section
+            id="kalender"
+            className="enter-section mt-8 scroll-mt-6"
+            style={{ '--enter-delay': '60ms' } as CSSProperties}
+          >
+            <Panel
+              title="Kalender Training"
+              description="Sebaran acara pada periode terpilih. Klik tanggal untuk melihat detail."
+            >
+              <TrainingCalendar year={year} month={month} events={data.monthEvents} />
+            </Panel>
           </section>
 
-          <section id="pareto" className="mt-10 scroll-mt-6">
-            <h2 className="text-[13px] font-semibold tracking-[0.14em] uppercase text-[#55697C]">
-              Pareto Training per Bulan
-            </h2>
-            <p className="mt-1.5 text-[13px] text-[#55697C]">Dua belas bulan terakhir.</p>
-            <div className="mt-4 border border-[#0A2942]/12 bg-white/55 px-3 py-5 sm:px-5">
-              <ParetoChart data={data.pareto} hasData={hasTraining} />
-            </div>
+          <section
+            id="master"
+            className="enter-section mt-8 scroll-mt-6"
+            style={{ '--enter-delay': '120ms' } as CSSProperties}
+          >
+            <Panel title="Master Data" description="Angka reference dari data HR internal.">
+              <dl className="divide-y divide-slate-100">
+                {[
+                  ['Karyawan aktif (HR)', data.master.activeEmployees, 'orang'],
+                  ['Ruang acara aktif', data.master.activeRooms, 'ruang'],
+                  ['Total acara', data.master.totalTrainings, 'acara'],
+                ].map(([label, value, unit]) => (
+                  <div
+                    key={String(label)}
+                    className="flex items-center justify-between gap-4 px-4 py-3 transition duration-150 hover:bg-slate-50 sm:px-5"
+                  >
+                    <dt className="text-sm text-slate-600">{label}</dt>
+                    <dd className="text-sm font-semibold text-slate-900 tabular-nums">
+                      {String(value)}
+                      <span className="ml-1 text-xs font-normal text-slate-500">{unit}</span>
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </Panel>
+          </section>
+
+          <section
+            id="agenda"
+            className="enter-section mt-8 scroll-mt-6"
+            style={{ '--enter-delay': '180ms' } as CSSProperties}
+          >
+            <Panel title="Minggu Ini" description="Acara yang akan datang dalam tujuh hari ke depan.">
+              <EventList
+                events={data.upcomingEvents}
+                showRelativeDay
+                emptyTitle="Tidak ada acara minggu ini"
+                emptyDescription="Belum ada acara yang terjadwal dalam tujuh hari ke depan. Jadwal berikutnya akan muncul di sini begitu disimpan."
+              />
+            </Panel>
+          </section>
+
+          <section
+            id="terbaru"
+            className="enter-section mt-8 scroll-mt-6"
+            style={{ '--enter-delay': '240ms' } as CSSProperties}
+          >
+            <Panel title="Event Terbaru" description="Lima acara terakhir yang sudah berlangsung.">
+              <EventList
+                events={data.recentEvents}
+                emptyTitle="Belum ada event"
+                emptyDescription="Belum ada acara yang pernah dibuat. Event yang pertama akan muncul di sini setelah disimpan."
+              />
+            </Panel>
+          </section>
+
+          <section
+            id="pareto"
+            className="enter-section mt-8 scroll-mt-6"
+            style={{ '--enter-delay': '300ms' } as CSSProperties}
+          >
+            <Panel title="Pareto Training per Bulan" description="Dua belas bulan terakhir.">
+              <div className="px-4 py-5 sm:px-5">
+                <ParetoChart data={data.pareto} hasData={hasTraining} />
+              </div>
+            </Panel>
           </section>
         </>
       ) : null}

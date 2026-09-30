@@ -23,7 +23,7 @@ export const getDashboardSummary = async (year, month) => {
   const twelveAgo = addMonths(year, month, -11);
   const paretoStart = monthStart(twelveAgo.year, twelveAgo.month);
 
-  const [summary, pareto] = await Promise.all([
+  const [summary, pareto, recent, upcoming, monthEvents] = await Promise.all([
     query(
       `SELECT
          (SELECT COUNT_BIG(*) FROM dbo.training_acara
@@ -57,6 +57,48 @@ export const getDashboardSummary = async (year, month) => {
        ORDER BY month_key;`,
       (request) => request.input('paretoStart', sql.Date, paretoStart),
     ),
+    // Recent and upcoming are windowed on today, not on the selected period, so
+    // changing the month filter never hides what is actually next on the calendar.
+    query(
+      `SELECT TOP (5) a.id, a.judul, CONVERT(char(10), a.tgl, 126) AS tgl,
+              CONVERT(char(8), a.waktu_mulai, 108) AS waktu_mulai,
+              CONVERT(char(8), a.waktu_selesai, 108) AS waktu_selesai,
+              r.nama_ruangan, a.status,
+              (SELECT COUNT_BIG(*) FROM dbo.training_peserta_acara p WHERE p.event_id = a.id) AS peserta_count
+       FROM dbo.training_acara a
+       LEFT JOIN dbo.training_ruang_acara r ON r.id = a.ruang_id
+       WHERE a.tgl < CAST(GETDATE() AS date)
+       ORDER BY a.tgl DESC, a.id DESC;`,
+    ),
+    query(
+      `SELECT TOP (5) a.id, a.judul, CONVERT(char(10), a.tgl, 126) AS tgl,
+              CONVERT(char(8), a.waktu_mulai, 108) AS waktu_mulai,
+              CONVERT(char(8), a.waktu_selesai, 108) AS waktu_selesai,
+              r.nama_ruangan, a.status,
+              (SELECT COUNT_BIG(*) FROM dbo.training_peserta_acara p WHERE p.event_id = a.id) AS peserta_count
+       FROM dbo.training_acara a
+       LEFT JOIN dbo.training_ruang_acara r ON r.id = a.ruang_id
+       WHERE a.tgl >= CAST(GETDATE() AS date)
+         AND a.tgl <= DATEADD(day, 7, CAST(GETDATE() AS date))
+       ORDER BY a.tgl ASC, a.id ASC;`,
+    ),
+    // The calendar follows the selected period, so it uses the same bounds as
+    // the tiles. Capped because a month with hundreds of rows is not a calendar.
+    query(
+      `SELECT a.id, a.judul, CONVERT(char(10), a.tgl, 126) AS tgl,
+              CONVERT(char(8), a.waktu_mulai, 108) AS waktu_mulai,
+              CONVERT(char(8), a.waktu_selesai, 108) AS waktu_selesai,
+              r.nama_ruangan, a.status,
+              (SELECT COUNT_BIG(*) FROM dbo.training_peserta_acara p WHERE p.event_id = a.id) AS peserta_count
+       FROM dbo.training_acara a
+       LEFT JOIN dbo.training_ruang_acara r ON r.id = a.ruang_id
+       WHERE a.tgl >= @monthStart AND a.tgl < @nextStart
+       ORDER BY a.tgl ASC, a.id ASC;`,
+      (request) =>
+        request
+          .input('monthStart', sql.Date, start)
+          .input('nextStart', sql.Date, monthStart(next.year, next.month)),
+    ),
   ]);
 
   const row = summary.recordset[0];
@@ -74,9 +116,24 @@ export const getDashboardSummary = async (year, month) => {
       totalTrainings: Number(row?.total_trainings ?? 0),
       certificatesIssued: Number(row?.certificates_issued ?? 0),
     },
+    recentEvents: mapEvents(recent.recordset),
+    upcomingEvents: mapEvents(upcoming.recordset),
+    monthEvents: mapEvents(monthEvents.recordset),
     pareto: buildPareto(pareto.recordset, year, month),
   };
 };
+
+const mapEvents = (rows) =>
+  rows.map((row) => ({
+    id: row.id,
+    judul: row.judul,
+    tgl: String(row.tgl),
+    waktuMulai: String(row.waktu_mulai),
+    waktuSelesai: String(row.waktu_selesai),
+    ruangNama: row.nama_ruangan ?? null,
+    status: row.status,
+    pesertaCount: Number(row.peserta_count),
+  }));
 
 /**
  * Months with no rows are emitted as zero, so the axis never implies a gap is

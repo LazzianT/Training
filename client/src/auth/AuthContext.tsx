@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { EmployeeProfile } from '@training/contracts';
 import { loginRequest } from '../api/auth.js';
+import { useToast } from '../components/Toast.js';
 
 export type Session = {
   accessToken: string;
@@ -36,15 +38,29 @@ const AuthContext = createContext<AuthValue | null>(null);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(readSession);
+  const { push } = useToast();
+  const navigate = useNavigate();
 
-  const signOut = useCallback((sessionExpired = true) => {
-    sessionStorage.removeItem(STORAGE_KEY);
-    setSession(null);
-    if (sessionExpired) {
-      window.alert('Sesi Anda telah berakhir. Silakan masuk kembali.');
-      window.location.assign('/login');
-    }
-  }, []);
+  /**
+   * An expired session redirects through the router instead of
+   * window.location: a full reload would tear the toast out of the DOM before
+   * the user could read why they were bounced back to the login screen.
+   */
+  const signOut = useCallback(
+    (sessionExpired = true) => {
+      sessionStorage.removeItem(STORAGE_KEY);
+      setSession(null);
+      if (!sessionExpired) return;
+      push({
+        tone: 'warning',
+        title: 'Sesi Anda berakhir',
+        description: 'Masuk kembali untuk melanjutkan dari tempat Anda berhenti.',
+        duration: 12_000,
+      });
+      navigate('/login', { replace: true });
+    },
+    [push, navigate],
+  );
 
   useEffect(() => {
     if (!session) return;
