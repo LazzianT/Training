@@ -130,6 +130,7 @@ export type EmployeeLite = {
   nip: string;
   name: string;
   departId: string | null;
+  departmentName?: string | null;
 };
 
 export const FEEDBACK_ASPECTS = [

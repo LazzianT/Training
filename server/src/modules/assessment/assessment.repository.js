@@ -8,6 +8,8 @@ export const ensureAssessmentSchema = async () => {
       ALTER TABLE dbo.training_question_pg ADD image_data nvarchar(max) NULL;
     IF COL_LENGTH('dbo.training_question_essay', 'image_data') IS NULL
       ALTER TABLE dbo.training_question_essay ADD image_data nvarchar(max) NULL;
+    IF COL_LENGTH('dbo.training_absensi', 'signature_data') IS NULL
+      ALTER TABLE dbo.training_absensi ADD signature_data nvarchar(max) NULL;
     IF EXISTS (
       SELECT 1 FROM sys.check_constraints
       WHERE name = 'CK_training_qr_access_purpose'
@@ -188,12 +190,21 @@ export const getAssessmentResults = async (eventId) => {
     LEFT JOIN dbo.training_answer_grade_pg g ON g.answer_id=a.id
     WHERE s.event_id=@eventId
     GROUP BY s.phase, q.question_no, q.question_text
-    ORDER BY s.phase, q.question_no;`,
+    ORDER BY s.phase, q.question_no;
+
+    SELECT p.participant_nip, COALESCE(NULLIF(LTRIM(RTRIM(p.participant_name)), ''), LTRIM(RTRIM(h.Name)), p.participant_nip) AS participant_name,
+      CASE WHEN a.id IS NULL THEN 0 ELSE 1 END AS attended, a.captured_at
+    FROM dbo.training_peserta_acara p
+    LEFT JOIN dbo.hris_Employee h ON h.NIP=p.participant_nip
+    LEFT JOIN dbo.training_absensi a ON a.event_id=p.event_id AND a.participant_nip=p.participant_nip
+    WHERE p.event_id=@eventId
+    ORDER BY participant_name;`,
     (request) => request.input('eventId', sql.Int, eventId),
   );
   return {
     submissions: result.recordsets[0].map((row) => ({ phase: row.phase, nip: row.participant_nip, name: row.participant_name, status: row.status, score: Number(row.score), totalScore: Number(row.total_score), percentage: row.total_score ? Math.round((Number(row.score) / Number(row.total_score)) * 100) : null })),
     questionStats: result.recordsets[1].map((row) => ({ phase: row.phase, number: row.question_no, text: row.question_text, answered: Number(row.answered_count), wrong: Number(row.wrong_count), wrongPercentage: row.answered_count ? Math.round((Number(row.wrong_count) / Number(row.answered_count)) * 100) : 0 })),
+    attendance: result.recordsets[2].map((row) => ({ nip: row.participant_nip, name: row.participant_name, attended: Boolean(row.attended), capturedAt: row.captured_at })),
   };
 };
 
@@ -254,7 +265,17 @@ export const submitPublicAssessment = async (token, nip, answers) => {
     await query(`MERGE dbo.training_answer_pg AS target USING (SELECT @sessionId session_id,@testSetId test_set_id,@questionId question_id) s ON target.session_id=s.session_id AND target.question_id=s.question_id WHEN MATCHED THEN UPDATE SET answer=@answer,submitted_at=SYSUTCDATETIME() WHEN NOT MATCHED THEN INSERT(session_id,test_set_id,question_id,answer,submitted_at) VALUES(@sessionId,@testSetId,@questionId,@answer,SYSUTCDATETIME());`, (request) => request.input('sessionId', sql.Int, sessionId).input('testSetId', sql.Int, context.testSetId).input('questionId', sql.Int, answer.questionId).input('answer', sql.Char(1), answer.answer));
     await query(`MERGE dbo.training_answer_grade_pg AS target USING (SELECT TOP 1 a.id answer_id, CASE WHEN a.answer=q.correct_answer THEN q.point ELSE 0 END score, CASE WHEN a.answer=q.correct_answer THEN 1 ELSE 0 END is_correct FROM dbo.training_answer_pg a JOIN dbo.training_question_pg q ON q.id=a.question_id WHERE a.session_id=@sessionId AND a.question_id=@questionId) source ON target.answer_id=source.answer_id WHEN MATCHED THEN UPDATE SET score=source.score,is_correct=source.is_correct,graded_at=SYSUTCDATETIME() WHEN NOT MATCHED THEN INSERT(answer_id,score,is_correct,graded_at) VALUES(source.answer_id,source.score,source.is_correct,SYSUTCDATETIME());`, (request) => request.input('sessionId', sql.Int, sessionId).input('questionId', sql.Int, answer.questionId));
   }
-  return { sessionId };
+  await query(`
+    MERGE dbo.training_absensi WITH (HOLDLOCK) AS target
+    USING (SELECT @eventId AS event_id, @nip AS participant_nip) AS source
+    ON target.event_id=source.event_id AND target.participant_nip=source.participant_nip
+    WHEN NOT MATCHED THEN INSERT (event_id, participant_nip, photo_path, captured_at)
+      VALUES (source.event_id, source.participant_nip, 'auto-test', SYSUTCDATETIME());
+    UPDATE dbo.training_peserta_acara
+      SET attendance_status='present', updated_at=SYSUTCDATETIME()
+      WHERE event_id=@eventId AND participant_nip=@nip AND attendance_status <> 'present';`,
+    (request) => request.input('eventId', sql.Int, context.access.event_id).input('nip', sql.NVarChar(50), context.participantNip));
+  return { sessionId, attendanceRecorded: true };
 };
 
 export const submitFeedback = async (token, nip, entries) => {

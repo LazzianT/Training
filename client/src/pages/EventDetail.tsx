@@ -4,7 +4,7 @@ import type { EventDetail as EventDetailType, EventStatus } from '@training/cont
 import { EVENT_STATUSES, EVENT_STATUS_LABEL } from '@training/contracts';
 import { useAuth } from '../auth/AuthContext.js';
 import { addParticipants, fetchEvent, removeParticipant, updateEvent } from '../api/events.js';
-import { searchEmployees } from '../api/employees.js';
+import { suggestEmployeesForTraining } from '../api/employees.js';
 import { ApiRequestError } from '../api/auth.js';
 
 export const EventDetail = () => {
@@ -20,6 +20,8 @@ export const EventDetail = () => {
   const [selected, setSelected] = useState<string[]>([]);
   const [query, setQuery] = useState('');
   const [employees, setEmployees] = useState<{ nip: string; name: string; departId: string | null }[]>([]);
+  const [suggestions, setSuggestions] = useState<{ nip: string; name: string; departId: string | null; departmentName?: string | null }[]>([]);
+  const [refreshSuggestions, setRefreshSuggestions] = useState(0);
 
   useEffect(() => {
     if (!session || !Number.isInteger(eventId)) return;
@@ -32,9 +34,26 @@ export const EventDetail = () => {
   useEffect(() => {
     if (!session || query.trim().length < 1) { setEmployees([]); return; }
     const controller = new AbortController();
-    searchEmployees(session.accessToken, query, controller.signal).then(setEmployees).catch(() => undefined);
+    suggestEmployeesForTraining(session.accessToken, event?.judul ?? '', query, controller.signal).then(setEmployees).catch(() => undefined);
     return () => controller.abort();
-  }, [query, session]);
+  }, [event?.judul, query, session]);
+
+  useEffect(() => {
+    if (!session || !event?.judul) return;
+    const controller = new AbortController();
+    suggestEmployeesForTraining(session.accessToken, event.judul, '', controller.signal)
+      .then((items) => {
+        const departments = new Set<string>();
+        setSuggestions(items.filter((item) => {
+          const department = item.departId ?? 'unknown';
+          if (departments.has(department)) return false;
+          departments.add(department);
+          return true;
+        }).slice(0, 7));
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [event?.judul, refreshSuggestions, session]);
 
   if (!event) return <p className="text-[#55697C]">{message || 'Memuat detail acara...'}</p>;
 
@@ -114,7 +133,8 @@ export const EventDetail = () => {
       <div className="border border-[#0A2942]/15 bg-[#FAF8F3] p-4"><p className="text-xs uppercase text-[#55697C]">Peserta</p><p className="mt-2 text-2xl font-semibold text-[#0A2942]">{event.pesertaCount}</p></div>
     </section>
     <section className="mt-8 border border-[#0A2942]/15 bg-[#FAF8F3] p-5">
-      <h2 className="text-xl font-semibold text-[#0A2942]">Tambah Peserta</h2><p className="mt-1 text-sm text-[#55697C]">Cari karyawan, centang beberapa nama, lalu tambahkan sekaligus.</p>
+       <h2 className="text-xl font-semibold text-[#0A2942]">Tambah Peserta</h2><p className="mt-1 text-sm text-[#55697C]">Rekomendasi hanya menampilkan karyawan yang belum pernah mengikuti training dengan judul mirip.</p>
+       <div className="mt-4"><div className="flex items-center justify-between gap-3"><p className="text-xs font-semibold tracking-[0.12em] text-[#8A5A17] uppercase">Kandidat rekomendasi</p><button type="button" onClick={() => setRefreshSuggestions((value) => value + 1)} className="border border-[#0A2942]/20 bg-white px-3 py-1.5 text-xs font-semibold text-[#0A2942] hover:border-[#D9A441]">Refresh kandidat</button></div>{suggestions.filter((employee) => !existing.has(employee.nip)).length > 0 ? <div className="mt-2 flex flex-wrap gap-2">{suggestions.filter((employee) => !existing.has(employee.nip)).map((employee) => <button key={employee.nip} type="button" onClick={() => setSelected(selected.includes(employee.nip) ? selected.filter((nip) => nip !== employee.nip) : [...selected, employee.nip])} className={`rounded-full border px-3 py-2 text-left text-xs transition-colors ${selected.includes(employee.nip) ? 'border-[#28704A] bg-[#28704A]/10 text-[#28704A]' : 'border-[#0A2942]/20 bg-white text-[#0A2942] hover:border-[#D9A441] hover:bg-[#D9A441]/10'}`}><span className="font-semibold">{employee.name}</span><span className="ml-1 text-[#55697C]">· {employee.departmentName ?? employee.departId ?? 'Departemen belum ada'}</span></button>)}</div> : <p className="mt-2 text-xs text-[#55697C]">Tidak ada kandidat baru.</p>}</div>
       <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Cari NIP atau nama" className="mt-4 w-full border border-[#0A2942]/25 bg-white p-2.5 text-[#0A2942]" />
       <div className="mt-3 max-h-56 overflow-y-auto border border-[#0A2942]/10 bg-white">{employees.filter((employee) => !existing.has(employee.nip)).map((employee) => <label key={employee.nip} className="flex gap-3 border-b border-[#0A2942]/10 px-3 py-2 text-sm"><input type="checkbox" checked={selected.includes(employee.nip)} onChange={() => setSelected(selected.includes(employee.nip) ? selected.filter((nip) => nip !== employee.nip) : [...selected, employee.nip])} /><span className="font-mono text-xs text-[#78716C]">{employee.nip}</span><span>{employee.name}</span></label>)}</div>
       <button type="button" disabled={!selected.length || adding} onClick={add} className="mt-4 bg-[#0A2942] px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">{adding ? 'Menambahkan...' : `Tambah ${selected.length || ''} Peserta`}</button>
