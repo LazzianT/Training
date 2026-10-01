@@ -85,17 +85,17 @@ export const createMateri = async (input) => {
     throw Object.assign(new Error('MATERI_SUDAH_ADA'), { code: 'MATERI_SUDAH_ADA' });
   }
 
-  return transaction(async (tx) => {
+  return transaction(async (request) => {
     /*
       The whole read of MAX(urutan) and the insert share one transaction with an
       update lock held, otherwise two people adding a material at the same moment
       both read the same next value and one loses the race on the unique kode.
     */
-    const next = await tx.query(
+    const next = await request().query(
       'SELECT ISNULL(MAX(urutan), 0) + 1 AS next_urutan FROM dbo.training_ojt_materi WITH (UPDLOCK, HOLDLOCK);',
     );
     const urutan = Number(next.recordset[0].next_urutan);
-    const result = await tx
+    const result = await request()
       .input('nama', sql.NVarChar(200), cleaned)
       .input('deskripsi', sql.NVarChar(2000), input.deskripsi || null)
       .input('urutan', sql.Int, urutan)
@@ -156,46 +156,64 @@ export const setMateriAktif = async (materiId, aktif) => {
  * fail partway and leave the order half applied.
  */
 export const moveMateri = async (materiId, direction) => {
-  return transaction(async (tx) => {
-    const current = await tx
+  return transaction(async (request) => {
+    const current = await request()
       .input('id', sql.Int, materiId)
       .query('SELECT id, urutan FROM dbo.training_ojt_materi WITH (UPDLOCK, HOLDLOCK) WHERE id = @id;');
     const row = current.recordset[0];
     if (!row) throw Object.assign(new Error('MATERI_NOT_FOUND'), { code: 'MATERI_NOT_FOUND' });
 
-    const neighbour = await tx
+    const neighbour = await request()
       .input('urutan', sql.Int, row.urutan + direction)
       .query('SELECT id, urutan FROM dbo.training_ojt_materi WHERE urutan = @urutan;');
     const other = neighbour.recordset[0];
     // Already at the end of the list. Not an error: the button just does nothing.
     if (!other) return false;
 
+    const bind = (req) =>
+      req
+        .input('aId', sql.Int, row.id)
+        .input('bId', sql.Int, other.id)
+        .input('aSeq', sql.Int, row.urutan)
+        .input('bSeq', sql.Int, other.urutan);
+
     /*
       urutan carries a UNIQUE constraint, so both rows are parked on negative
       values before taking each other's slot. Writing them straight through would
       fail the moment the target value is still held, and the move would end up
-      half applied.
+      half applied. Two separate requests, because a Request that has run cannot
+      have its parameters declared again.
     */
-    await tx
-      .input('aId', sql.Int, row.id)
-      .input('bId', sql.Int, other.id)
-      .input('aSeq', sql.Int, row.urutan)
-      .input('bSeq', sql.Int, other.urutan)
-      .query(`
-        UPDATE dbo.training_ojt_materi
-        SET urutan = CASE WHEN id = @aId THEN -@aSeq ELSE -@bSeq END
-        WHERE id IN (@aId, @bId);`);
-    await tx
-      .input('aId', sql.Int, row.id)
-      .input('bId', sql.Int, other.id)
-      .input('aSeq', sql.Int, row.urutan)
-      .input('bSeq', sql.Int, other.urutan)
-      .query(`
-        UPDATE dbo.training_ojt_materi
-        SET urutan = CASE WHEN id = @aId THEN @bSeq ELSE @aSeq END
-        WHERE id IN (@aId, @bId);`);
+    await bind(request()).query(`
+      UPDATE dbo.training_ojt_materi
+      SET urutan = CASE WHEN id = @aId THEN -@aSeq ELSE -@bSeq END
+      WHERE id IN (@aId, @bId);`);
+    await bind(request()).query(`
+      UPDATE dbo.training_ojt_materi
+      SET urutan = CASE WHEN id = @aId THEN @bSeq ELSE @aSeq END
+      WHERE id IN (@aId, @bId);`);
     return true;
   });
+};
+
+/**
+ * Turns "HH:MM" into the Date object the driver insists on.
+ *
+ * tedious validates a Time parameter with `new Date(Date.parse(value))` when it
+ * is not already a Date, and Date.parse returns NaN for a bare clock time, so any
+ * string fails with "Invalid time". Only a Date gets through.
+ *
+ * Built with Date.UTC and read back with getUTCHours, which is the same pairing
+ * toTime() uses. mssql connects with useUTC on, so the clock time survives the
+ * round trip instead of shifting by the server's offset.
+ *
+ * The date part is an arbitrary 1970-01-01 because Time carries no date and only
+ * the time components are read.
+ */
+export const toSqlTime = (value) => {
+  if (!value) return null;
+  const [hours, minutes] = value.split(':').map(Number);
+  return new Date(Date.UTC(1970, 0, 1, hours, minutes, 0, 0));
 };
 
 export const findPengisi = async (nip) => {
@@ -254,18 +272,19 @@ const toTime = (value) => {
  * near duplicate does not silently become a second row, and kode is derived from
  * the catalog's next urutan so the two unique constraints stay satisfied.
  */
-export const resolveMateri = async (connection, nama) => {
+export const resolveMateri = async (request, nama) => {
   const cleaned = nama.trim().replace(/\s+/g, ' ');
-  const { recordset } = await connection
-    .input('nama', sql.NVarChar(200), cleaned)
-    .query('SELECT id, nama FROM dbo.training_ojt_materi WHERE LOWER(nama) = LOWER(@nama);');
-  if (recordset.length > 0) return recordset[0].id;
+  const existing = await request().input('nama', sql.NVarChar(200), cleaned).query(
+    'SELECT id, nama FROM dbo.training_ojt_materi WHERE LOWER(nama) = LOWER(@nama);',
+  );
+  if (existing.recordset.length > 0) return existing.recordset[0].id;
 
-  const next = await connection.query(`
-    SELECT ISNULL(MAX(urutan), 0) + 1 AS next_urutan FROM dbo.training_ojt_materi WITH (UPDLOCK, HOLDLOCK);`);
+  const next = await request().query(
+    'SELECT ISNULL(MAX(urutan), 0) + 1 AS next_urutan FROM dbo.training_ojt_materi WITH (UPDLOCK, HOLDLOCK);',
+  );
   const urutan = Number(next.recordset[0].next_urutan);
 
-  const inserted = await connection
+  const inserted = await request()
     .input('nama', sql.NVarChar(200), cleaned)
     .input('urutan', sql.Int, urutan)
     .query(`
@@ -293,14 +312,14 @@ export const createJadwal = async (batchId, input) => {
     throw Object.assign(new Error('TANGGAL_DI_LUAR_RENTANG'), { code: 'TANGGAL_DI_LUAR_RENTANG' });
   }
 
-  return transaction(async (tx) => {
-    const materiId = await resolveMateri(tx, input.namaMateri);
-    const result = await tx
+  return transaction(async (request) => {
+    const materiId = await resolveMateri(request, input.namaMateri);
+    const result = await request()
       .input('batchId', sql.Int, batchId)
       .input('materiId', sql.Int, materiId)
       .input('tanggal', sql.Date, input.tanggal)
-      .input('jamMulai', sql.Time, input.jamMulai || null)
-      .input('jamSelesai', sql.Time, input.jamSelesai || null)
+      .input('jamMulai', sql.Time, toSqlTime(input.jamMulai))
+      .input('jamSelesai', sql.Time, toSqlTime(input.jamSelesai))
       .input('pengisiNip', sql.VarChar(10), input.pengisiNip || null)
       .input('catatan', sql.NVarChar(400), input.catatan || null)
       .query(`
@@ -335,16 +354,17 @@ export const updateJadwal = async (jadwalId, input) => {
     catalog. A catalog row committed without the schedule row pointing at it would
     be an orphan nothing ever cleans up.
   */
-  await transaction(async (tx) => {
+  await transaction(async (request) => {
+    const binder = request();
     if (input.namaMateri !== undefined) {
-      tx.input('materiId', sql.Int, await resolveMateri(tx, input.namaMateri));
+      binder.input('materiId', sql.Int, await resolveMateri(request, input.namaMateri));
     }
-    if (input.pengisiNip !== undefined) tx.input('pengisiNip', sql.VarChar(10), input.pengisiNip || null);
-    if (input.jamMulai !== undefined) tx.input('jamMulai', sql.Time, input.jamMulai || null);
-    if (input.jamSelesai !== undefined) tx.input('jamSelesai', sql.Time, input.jamSelesai || null);
-    if (input.catatan !== undefined) tx.input('catatan', sql.NVarChar(400), input.catatan || null);
+    if (input.pengisiNip !== undefined) binder.input('pengisiNip', sql.VarChar(10), input.pengisiNip || null);
+    if (input.jamMulai !== undefined) binder.input('jamMulai', sql.Time, toSqlTime(input.jamMulai));
+    if (input.jamSelesai !== undefined) binder.input('jamSelesai', sql.Time, toSqlTime(input.jamSelesai));
+    if (input.catatan !== undefined) binder.input('catatan', sql.NVarChar(400), input.catatan || null);
 
-    await tx.input('id', sql.Int, jadwalId).query(`
+    await binder.input('id', sql.Int, jadwalId).query(`
       UPDATE dbo.training_ojt_jadwal_materi SET ${sets.join(', ')} WHERE id = @id;`);
   });
 

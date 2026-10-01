@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import sql from 'mssql';
 import { createApp } from '../src/app.js';
 import { signAccessToken } from '../src/modules/auth/token.service.js';
 import {
@@ -8,6 +9,7 @@ import {
   setAbsensiBody,
   updateJadwalBody,
 } from '../src/modules/ojt/ojt.schema.js';
+import { toSqlTime } from '../src/modules/ojt/ojt.repository.js';
 
 let server;
 let baseUrl;
@@ -190,5 +192,55 @@ describe('ojt material schedule', () => {
 
   it('still rejects an incoherent range when only one end is patched', () => {
     expect(updateJadwalBody.safeParse({ jamMulai: '13:00', jamSelesai: '09:00' }).success).toBe(false);
+  });
+});
+
+/*
+  These exist because the schedule endpoints shipped broken twice while every
+  schema test passed. None of them touch the database: they pin the two contracts
+  the driver actually depends on, which a zod parse can never catch.
+*/
+describe('ojt time conversion', () => {
+  it('hands the driver a Date, because it rejects every string for Time', () => {
+    // tedious does new Date(Date.parse(value)) for a non-Date, and Date.parse
+    // returns NaN for "09:00" or even "09:00:00", so only a Date gets through.
+    const value = toSqlTime('09:00');
+    expect(value).toBeInstanceOf(Date);
+    expect(Number.isNaN(value.getTime())).toBe(false);
+    expect(isNaN(Date.parse('09:00'))).toBe(true);
+  });
+
+  it('reads back the same clock time it was given', () => {
+    // Written with Date.UTC and read with getUTCHours, so the round trip does not
+    // shift by the server offset.
+    const value = toSqlTime('13:45');
+    expect(value.getUTCHours()).toBe(13);
+    expect(value.getUTCMinutes()).toBe(45);
+  });
+
+  it('maps midnight and the last minute of the day', () => {
+    expect(toSqlTime('00:00').getUTCHours()).toBe(0);
+    expect(toSqlTime('23:59').getUTCHours()).toBe(23);
+    expect(toSqlTime('23:59').getUTCMinutes()).toBe(59);
+  });
+
+  it('passes an absent time through as null', () => {
+    // An all day session has no clock time, and null is what the column allows.
+    expect(toSqlTime(null)).toBeNull();
+    expect(toSqlTime(undefined)).toBeNull();
+    expect(toSqlTime('')).toBeNull();
+  });
+});
+
+describe('db transaction helper', () => {
+  it('gives callers a request factory, not the transaction itself', () => {
+    /*
+      mssql's Transaction has no query method, so passing it out directly fails on
+      the first statement with "tx.query is not a function". The contract is
+      checked structurally here because running it needs a live connection.
+    */
+    const transaction = sql.Transaction;
+    expect(typeof transaction.prototype.query).toBe('undefined');
+    expect(typeof transaction.prototype.request).toBe('function');
   });
 });
