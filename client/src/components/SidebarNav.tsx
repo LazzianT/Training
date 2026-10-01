@@ -5,6 +5,7 @@ import {
   IconBuat,
   IconDaftar,
   IconMonitoring,
+  IconOjt,
   IconRingkasan,
 } from './icons.js';
 
@@ -57,7 +58,10 @@ export const SidebarNav = ({ canManageEvents, canViewMyEvents, showLabels }: Sid
       heading: 'Pemantauan',
       items: [
         ...(canManageEvents
-          ? [{ label: 'Monitoring Karyawan', to: '/employee-monitoring', icon: IconMonitoring }]
+          ? [
+              { label: 'Monitoring Karyawan', to: '/employee-monitoring', icon: IconMonitoring },
+              { label: 'OJT', to: '/ojt', icon: IconOjt, end: true },
+            ]
           : []),
         ...(canViewMyEvents ? [{ label: 'Acara Saya', to: '/my-events', icon: IconAcaraSaya }] : []),
       ],

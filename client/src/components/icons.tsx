@@ -45,6 +45,14 @@ export const IconAcaraSaya = ({ className = base }: IconProps) => (
   </svg>
 );
 
+export const IconOjt = ({ className = base }: IconProps) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className={className} aria-hidden="true">
+    <path d="M12 3.5l8 4.5-8 4.5-8-4.5z" strokeLinejoin="miter" />
+    <path d="M4 12l8 4.5 8-4.5" strokeLinecap="square" />
+    <path d="M4 16.5l8 4.5 8-4.5" strokeLinecap="square" />
+  </svg>
+);
+
 export const IconChevron = ({ className = base }: IconProps) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className={className} aria-hidden="true">
     <path d="M14.5 6l-6 6 6 6" strokeLinecap="square" />

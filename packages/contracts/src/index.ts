@@ -169,3 +169,86 @@ export const FEEDBACK_ASPECTS = [
   { code: 'Antusiasme_dan_Suara', label: 'Bagaimana antusiasme dan kejelasan suara trainer?' },
   { code: 'Penampilan_Trainer', label: 'Bagaimana penampilan trainer?' },
 ] as const;
+
+/* --------------------------------------------------------------- OJT */
+
+export type OjtBatchStatus = 'draft' | 'published' | 'closed';
+export type OjtAttendanceStatus = 'hadir' | 'tidak_hadir' | 'izin';
+
+export type OjtMateri = {
+  id: number;
+  kode: string;
+  nama: string;
+  deskripsi: string | null;
+  urutan: number;
+  aktif: boolean;
+};
+
+export type OjtAbsensi = {
+  /** YYYY-MM-DD */
+  tanggal: string;
+  status: OjtAttendanceStatus;
+  catatan: string | null;
+};
+
+export type OjtPeserta = {
+  id: number;
+  batchId: number;
+  /** Issued by HR. Identifies one person across every batch. */
+  kodePeserta: string;
+  namaLengkap: string;
+  departemen: string | null;
+  jabatan: string | null;
+  /** YYYY-MM-DD */
+  tanggalMasuk: string | null;
+  aktif: boolean;
+};
+
+export type OjtPesertaDetail = OjtPeserta & {
+  materiSelesai: number[];
+  absensi: OjtAbsensi[];
+};
+
+export type OjtBatch = {
+  id: number;
+  kode: string;
+  judul: string;
+  /** YYYY-MM-DD */
+  tanggalMulai: string;
+  /** YYYY-MM-DD */
+  tanggalSelesai: string;
+  status: OjtBatchStatus;
+  lokasi: string | null;
+  catatan: string | null;
+  /** The mirrored training_acara row that carries the assessment chain. */
+  eventId: number;
+  dibuatOlehNip: string;
+  dibuatPada: string;
+  pesertaCount: number;
+};
+
+export type OjtBatchDetail = OjtBatch & {
+  peserta: OjtPesertaDetail[];
+  materi: OjtMateri[];
+};
+
+export type CreateOjtBatchRequest = {
+  kode: string;
+  judul: string;
+  tanggalMulai: string;
+  tanggalSelesai: string;
+  lokasi?: string | null;
+  catatan?: string | null;
+};
+
+export type AddOjtPesertaRequest = {
+  kodePeserta: string;
+  namaLengkap: string;
+  departemen?: string | null;
+  jabatan?: string | null;
+  tanggalMasuk?: string | null;
+};
+
+export type SetOjtAbsensiRequest = {
+  entries: { pesertaId: number; tanggal: string; status: OjtAttendanceStatus; catatan?: string | null }[];
+};

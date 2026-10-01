@@ -67,7 +67,7 @@ export const listQrAccess = async (eventId) => {
 export const resolveQrAccess = async (token) => {
   const { recordset } = await query(`
     SELECT TOP 1 q.id, q.event_id, q.purpose, a.judul, a.tgl, a.waktu_mulai, a.waktu_selesai,
-      r.nama_ruangan, q.expires_at, q.max_uses, q.used_count
+      r.nama_ruangan, q.expires_at, q.max_uses, q.used_count, a.kind
     FROM dbo.training_qr_access q
     JOIN dbo.training_acara a ON a.id = q.event_id
     LEFT JOIN dbo.training_ruang_acara r ON r.id = a.ruang_id
@@ -170,15 +170,18 @@ export const deleteQuestion = async (testSetId, type, questionId) => {
 
 export const getAssessmentResults = async (eventId) => {
   const result = await query(`
-    SELECT s.phase, s.participant_nip, LTRIM(RTRIM(h.Name)) AS participant_name, s.status,
+    SELECT s.phase, s.participant_nip,
+      COALESCE(NULLIF(LTRIM(RTRIM(p.participant_name)), ''), LTRIM(RTRIM(h.Name)), s.participant_nip) AS participant_name,
+      s.status,
       COALESCE(SUM(g.score), 0) AS score, COALESCE(SUM(q.point), 0) AS total_score
     FROM dbo.training_test_session s
+    LEFT JOIN dbo.training_peserta_acara p ON p.event_id = s.event_id AND p.participant_nip = s.participant_nip
     LEFT JOIN dbo.hris_Employee h ON h.NIP=s.participant_nip
     LEFT JOIN dbo.training_answer_pg a ON a.session_id=s.id
     LEFT JOIN dbo.training_question_pg q ON q.id=a.question_id
     LEFT JOIN dbo.training_answer_grade_pg g ON g.answer_id=a.id
     WHERE s.event_id=@eventId
-    GROUP BY s.phase, s.participant_nip, h.Name, s.status
+    GROUP BY s.phase, s.participant_nip, p.participant_name, h.Name, s.status
     ORDER BY s.phase, participant_name;
 
     SELECT s.phase, q.question_no, q.question_text,

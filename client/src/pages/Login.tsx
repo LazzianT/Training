@@ -33,11 +33,18 @@ export const Login = () => {
       <div className="mx-auto flex min-h-[calc(100dvh-2rem)] max-w-6xl flex-col border border-slate-200 bg-white sm:min-h-[calc(100dvh-4rem)]">
         <header className="flex min-h-16 items-center justify-between border-b border-slate-200 px-5 sm:px-8">
           <div className="flex items-center gap-3">
-            <span className="h-2.5 w-2.5 bg-slate-900" aria-hidden="true" />
+            <img
+              src="/logo.png"
+              alt="PT Braja Mukti Cakra"
+              width={1016}
+              height={404}
+              className="h-10 w-auto shrink-0 object-contain"
+            />
+            <span aria-hidden="true" className="h-6 w-px bg-slate-200" />
             <p className="text-sm font-semibold tracking-tight">BMC Training</p>
           </div>
           <p className="hidden text-[10px] font-semibold tracking-[0.16em] text-slate-500 uppercase sm:block">
-            PT BRAJA MUKTI CAKRA
+            Internal learning workspace
           </p>
         </header>
 

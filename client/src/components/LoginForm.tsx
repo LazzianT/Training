@@ -38,10 +38,11 @@ export const LoginForm = ({ onSubmit, nipRef }: LoginFormProps) => {
 
   return (
     <div className="w-full max-w-md">
-      <div className="flex items-center justify-between border-b border-slate-200 pb-5">
-        <p className="text-[10px] font-semibold tracking-[0.18em] text-slate-500 uppercase">Secure access</p>
-        <img src="/logo.png" alt="PT Braja Mukti Cakra" className="h-8 w-auto object-contain" />
-      </div>
+      {/* The company logo already sits in the page header, so repeating it here
+          would print the same identity twice within one viewport. */}
+      <p className="border-b border-slate-200 pb-5 text-[10px] font-semibold tracking-[0.18em] text-slate-500 uppercase">
+        Secure access
+      </p>
 
       <h2 className="mt-9 text-4xl font-semibold tracking-[-0.06em] text-slate-900">Selamat datang.</h2>
       <p className="mt-3 text-sm leading-6 text-slate-500">Masuk dengan data karyawan Anda untuk melanjutkan.</p>

@@ -94,7 +94,13 @@ export const DashboardLayout = ({ children }: { children: ReactNode }) => {
       >
         <div className="flex min-h-0 flex-1 flex-col px-3 py-5 sm:px-5">
           <div className={`flex items-center gap-2.5 ${showLabels ? '' : 'lg:justify-center'}`}>
-            <span className="h-2.5 w-2.5 shrink-0 bg-slate-900" aria-hidden="true" />
+            <img
+              src="/logo.png"
+              alt="PT Braja Mukti Cakra"
+              width={1016}
+              height={404}
+              className="h-8 w-auto shrink-0 object-contain"
+            />
             <p className={`truncate text-sm font-semibold tracking-tight ${showLabels ? '' : 'lg:sr-only'}`}>
               BMC Training
             </p>
