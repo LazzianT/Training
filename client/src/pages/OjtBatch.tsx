@@ -15,6 +15,7 @@ import {
 import { Button, EmptyState, Field, Panel, StatTile } from '../components/ui/index.js';
 import { CopyButton, useToast } from '../components/Toast.js';
 import { useConfirm } from '../components/ConfirmDialog.js';
+import { Modal } from '../components/Modal.js';
 import { useAuth } from '../auth/AuthContext.js';
 import type { OjtResults } from '@training/contracts';
 import { shortDate } from '../lib/date.js';
@@ -70,6 +71,7 @@ export const OjtBatchPage = () => {
   const [message, setMessage] = useState('');
   const [qr, setQr] = useState<{ purpose: string; url: string } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [addingPeserta, setAddingPeserta] = useState(false);
   const [dirty, setDirty] = useState<Record<number, OjtAttendanceStatus>>({});
   const [pesertaDraft, setPesertaDraft] = useState({ namaLengkap: '' });
 
@@ -130,12 +132,13 @@ export const OjtBatchPage = () => {
     setBatch(fresh);
   };
 
-  const savePeserta = async () => {
+const submitPeserta = async () => {
     if (!session || !batch) return;
     setSaving(true);
     try {
-const created = await addOjtPeserta(session.accessToken, batch.id, pesertaDraft);
+      const created = await addOjtPeserta(session.accessToken, batch.id, pesertaDraft);
       setPesertaDraft({ namaLengkap: '' });
+      setAddingPeserta(false);
       await reload();
       push({
         tone: 'success',
@@ -327,48 +330,93 @@ const created = await addOjtPeserta(session.accessToken, batch.id, pesertaDraft)
         />
       </section>
 
-<Panel
-        title="Tambah Peserta"
-        description="Kode peserta dibuat otomatis oleh sistem dan dipakai peserta saat membuka assessment."
+{/*
+        The list is the point of this screen, so it leads and the add form lives
+        in a dialog. A full width panel for a single text field pushed the list
+        below the fold and read as the main task.
+      */}
+      <Panel
+        title="Peserta"
+        description="Kode dibuat otomatis. Berikan kode ini kepada peserta untuk mengisi assessment."
         className="enter-section mt-8"
+        action={
+          <Button type="button" className="h-9 px-3 text-xs" onClick={() => setAddingPeserta(true)}>
+            Tambah Peserta
+          </Button>
+        }
       >
-        <div className="grid gap-5 p-5">
-          <div className="max-w-sm">
-            <Field id="ojt-nama" label="Nama lengkap">
-              {(field) => (
-                <input
-                  value={pesertaDraft.namaLengkap}
-                  onChange={(change) => setPesertaDraft({ namaLengkap: change.target.value })}
-                  placeholder="Nama sesuai KTP"
-                  autoComplete="off"
-                  {...field}
-                  className={field.className}
-                />
-              )}
-            </Field>
-          </div>
-          <div>
-            <Button
-              type="button"
-              disabled={saving || !pesertaDraft.namaLengkap.trim()}
-              onClick={savePeserta}
-            >
-              {saving ? 'Menyimpan...' : 'Tambah Peserta'}
-            </Button>
-          </div>
-        </div>
-      </Panel>
-
-      {batch.peserta.length === 0 ? (
-        <div className="mt-8 border border-slate-200 bg-white">
+        {batch.peserta.length === 0 ? (
           <EmptyState
             title="Belum ada peserta"
-            description="Tambahkan peserta memakai kode dari HR. Kode itulah yang mereka pakai untuk mengisi pre-test, kehadiran, dan post-test."
+            description="Tambahkan peserta satu per satu. Sistem membuat kode otomatis yang dipakai peserta saat membuka assessment."
           />
+        ) : (
+          <ul className="divide-y divide-slate-100">
+            {batch.peserta.map((item) => (
+              <li
+                key={item.id}
+                className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 transition duration-150 hover:bg-slate-50 sm:px-5"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-slate-900">{item.namaLengkap}</p>
+                  <p className="mt-0.5 text-xs text-slate-500 tabular-nums">{item.kodePeserta}</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-4 text-xs text-slate-500">
+                  <span className="tabular-nums">
+                    {item.materiSelesai.length}/{batch.materi.length} materi
+                  </span>
+                  <span className="tabular-nums">
+                    {item.absensi.filter((entry) => entry.status === 'hadir').length}/{days.length} hari
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => removePeserta(item)}
+                    className="font-semibold text-slate-900 underline underline-offset-4 outline-none transition duration-150 hover:text-red-600 focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
+                  >
+                    Keluarkan
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Panel>
+
+      <Modal
+        open={addingPeserta}
+        onClose={() => setAddingPeserta(false)}
+        title="Tambah Peserta"
+        description="Cukup nama. Kode peserta dibuat otomatis oleh sistem."
+        size="md"
+        footer={
+          <>
+            <Button type="button" variant="secondary" onClick={() => setAddingPeserta(false)}>
+              Batal
+            </Button>
+            <Button type="button" disabled={saving || !pesertaDraft.namaLengkap.trim()} onClick={submitPeserta}>
+              {saving ? 'Menyimpan...' : 'Tambah'}
+            </Button>
+          </>
+        }
+      >
+        <div className="p-5">
+          <Field id="ojt-nama" label="Nama lengkap">
+            {(field) => (
+              <input
+                value={pesertaDraft.namaLengkap}
+                onChange={(change) => setPesertaDraft({ namaLengkap: change.target.value })}
+                placeholder="Nama sesuai KTP"
+                autoComplete="off"
+                {...field}
+                className={field.className}
+              />
+            )}
+          </Field>
         </div>
-      ) : (
-        <>
-          <Panel title="Progres Materi" description="Centang materi yang sudah diselesaikan peserta." className="enter-section mt-8">
+</Modal>
+
+      <>
+        <Panel title="Progres Materi" description="Centang materi yang sudah diselesaikan peserta." className="enter-section mt-8">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[40rem]">
                 <thead>
@@ -379,10 +427,7 @@ const created = await addOjtPeserta(session.accessToken, batch.id, pesertaDraft)
                         {materi.kode}
                       </th>
                     ))}
-                    <th scope="col" className="px-4 py-2.5 text-right text-[11px] font-semibold tracking-[0.1em] text-slate-500 uppercase">Progres</th>
-                    <th scope="col" className="px-4 py-2.5 text-right text-[11px] font-semibold tracking-[0.1em] text-slate-500 uppercase">
-                      <span className="sr-only">Aksi</span>
-                    </th>
+<th scope="col" className="px-4 py-2.5 text-right text-[11px] font-semibold tracking-[0.1em] text-slate-500 uppercase">Progres</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -409,17 +454,8 @@ const created = await addOjtPeserta(session.accessToken, batch.id, pesertaDraft)
                           </td>
                         );
                       })}
-                      <td className="px-4 py-3 text-right text-sm font-semibold text-slate-900 tabular-nums">
+<td className="px-4 py-3 text-right text-sm font-semibold text-slate-900 tabular-nums">
                         {item.materiSelesai.length}/{batch.materi.length}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <button
-                          type="button"
-                          onClick={() => removePeserta(item)}
-                          className="text-xs font-semibold text-slate-900 underline underline-offset-4 outline-none transition duration-150 hover:text-red-600 focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
-                        >
-                          Keluarkan
-                        </button>
                       </td>
                     </tr>
                   ))}
@@ -484,7 +520,6 @@ const created = await addOjtPeserta(session.accessToken, batch.id, pesertaDraft)
             </div>
           </Panel>
         </>
-      )}
 
       <Panel title="Assessment" description="QR memakai batch ini untuk pre-test, post-test, feedback, dan absensi." className="enter-section mt-8">
         <div className="p-5">
