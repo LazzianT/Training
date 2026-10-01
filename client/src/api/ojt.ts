@@ -2,6 +2,7 @@ import type {
   AddOjtPesertaRequest,
   ApiError,
   CreateOjtBatchRequest,
+  CreateOjtJadwalRequest,
   OjtBatch,
   OjtBatchDetail,
   OjtBatchStatus,
@@ -9,6 +10,7 @@ import type {
   OjtResults,
   OjtSavedQuestion,
   OjtTestSet,
+  UpdateOjtJadwalRequest,
 } from '@training/contracts';
 import { apiBaseUrl, ApiRequestError } from './auth.js';
 
@@ -80,6 +82,21 @@ export const addOjtPeserta = (token: string, batchId: number, body: AddOjtPesert
 
 export const removeOjtPeserta = (token: string, pesertaId: number) =>
   call<void>(`/api/ojt/admin/peserta/${pesertaId}`, { ...admin(token), method: 'DELETE' });
+
+export const createOjtJadwal = (token: string, batchId: number, body: CreateOjtJadwalRequest) =>
+  call<{ id: number }>(`/api/ojt/admin/batches/${batchId}/jadwal`, {
+    ...admin(token, body),
+    method: 'POST',
+  });
+
+export const updateOjtJadwal = (token: string, jadwalId: number, body: UpdateOjtJadwalRequest) =>
+  call<{ id: number }>(`/api/ojt/admin/jadwal/${jadwalId}`, {
+    ...admin(token, body),
+    method: 'PATCH',
+  });
+
+export const deleteOjtJadwal = (token: string, jadwalId: number) =>
+  call<void>(`/api/ojt/admin/jadwal/${jadwalId}`, { ...admin(token), method: 'DELETE' });
 
 export const recordOjtAbsensi = (
   token: string,

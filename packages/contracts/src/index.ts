@@ -191,6 +191,31 @@ export type OjtAbsensi = {
   catatan: string | null;
 };
 
+/**
+ * One material sitting on one day of a batch's calendar.
+ *
+ * The material name lives in a shared catalog, so several batches can point at
+ * the same OjtMateri while scheduling it on different dates. Both clock times
+ * are null for an all day session, which is a normal case rather than missing
+ * data.
+ */
+export type OjtJadwalMateri = {
+  id: number;
+  batchId: number;
+  materiId: number;
+  materiKode: string;
+  materiNama: string;
+  /** YYYY-MM-DD, always inside the batch window. */
+  tanggal: string;
+  jamMulai: string | null;
+  jamSelesai: string | null;
+  pengisiNip: string | null;
+  /** Null when the NIP no longer resolves in HRIS, for example after someone left. */
+  pengisiNama: string | null;
+  pengisiDepartemen: string | null;
+  catatan: string | null;
+};
+
 export type OjtPeserta = {
   id: number;
   batchId: number;
@@ -228,6 +253,7 @@ export type OjtBatch = {
 export type OjtBatchDetail = OjtBatch & {
   peserta: OjtPesertaDetail[];
   materi: OjtMateri[];
+  jadwal: OjtJadwalMateri[];
 };
 
 export type CreateOjtBatchRequest = {
@@ -243,6 +269,26 @@ export type AddOjtPesertaRequest = {
   /** The participant code is generated server side, never sent by the client. */
   namaLengkap: string;
 };
+
+/**
+ * Scheduling a material onto a calendar day.
+ *
+ * namaMateri is a name rather than a materiId on purpose: the calendar lets HR
+ * type a material that is not in the catalog yet, and the server resolves it to
+ * the catalog, creating it when the name is new.
+ */
+export type CreateOjtJadwalRequest = {
+  /** YYYY-MM-DD, must fall inside the batch window. */
+  tanggal: string;
+  namaMateri: string;
+  jamMulai?: string | null;
+  jamSelesai?: string | null;
+  pengisiNip?: string | null;
+  catatan?: string | null;
+};
+
+/** Every field is optional: only what is sent gets written. */
+export type UpdateOjtJadwalRequest = Partial<CreateOjtJadwalRequest>;
 
 export type SetOjtAbsensiRequest = {
   entries: { pesertaId: number; tanggal: string; status: OjtAttendanceStatus; catatan?: string | null }[];

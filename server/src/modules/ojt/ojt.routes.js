@@ -4,6 +4,9 @@ import { authenticate } from '../../middleware/authenticate.js';
 import {
   addPeserta,
   createBatch,
+  createJadwal,
+  deleteJadwal,
+  findPengisi,
   getBatch,
   listBatches,
   listMateri,
@@ -11,6 +14,7 @@ import {
   setAbsensi,
   setBatchStatus,
   toggleMateri,
+  updateJadwal,
 } from './ojt.repository.js';
 import {
   addQuestion,
@@ -33,9 +37,11 @@ import {
 import {
   addPesertaBody,
   createBatchBody,
+  createJadwalBody,
   fieldErrors,
   setAbsensiBody,
   toggleMateriBody,
+  updateJadwalBody,
 } from './ojt.schema.js';
 
 const fail = (response, status, code, message, details) => {
@@ -245,6 +251,102 @@ ojtRouter.post('/batches/:id/materi', async (request, response, next) => {
       const selesai = await toggleMateri(parsed.data.pesertaId, parsed.data.materiId, target, response.locals.actor.nip);
       response.status(200).json({ selesai });
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/* ---------------------------------------------------------------- material schedule */
+
+/*
+  Domain errors carry a code rather than a status, so one table decides the
+  response and a new failure mode cannot accidentally come back as a 500.
+*/
+const DOMAIN_ERRORS = {
+  BATCH_NOT_FOUND: [404, 'BATCH_NOT_FOUND', 'Batch OJT tidak ditemukan.'],
+  JADWAL_NOT_FOUND: [404, 'JADWAL_NOT_FOUND', 'Jadwal materi tidak ditemukan.'],
+  TANGGAL_DI_LUAR_RENTANG: [
+    400,
+    'TANGGAL_DI_LUAR_PERIODE',
+    'Tanggal materi harus berada di dalam periode batch.',
+  ],
+  PENGISI_TIDAK_DIKENAL: [
+    400,
+    'PENGISI_TIDAK_DIKENAL',
+    'Pengisi materi tidak ditemukan atau sudah tidak aktif.',
+  ],
+};
+
+const respondToDomainError = (response, error, fallback) => {
+  const mapped = DOMAIN_ERRORS[error?.code];
+  if (!mapped) {
+    fallback();
+    return;
+  }
+  fail(response, ...mapped);
+};
+
+ojtRouter.post('/batches/:id/jadwal', async (request, response, next) => {
+  if (!requireHumanCapital(response, response.locals.actor)) return;
+  const parsedId = idParam.safeParse(request.params.id);
+  if (!parsedId.success) {
+    fail(response, 400, 'VALIDATION_ERROR', 'Id batch tidak valid.');
+    return;
+  }
+  const parsed = createJadwalBody.safeParse(request.body);
+  if (!parsed.success) {
+    fail(response, 400, 'VALIDATION_ERROR', 'Periksa kembali isian yang ditandai.', fieldErrors(parsed.error));
+    return;
+  }
+  try {
+    if (parsed.data.pengisiNip && !(await findPengisi(parsed.data.pengisiNip))) {
+      fail(response, 400, 'PENGISI_TIDAK_DIKENAL', 'Pengisi materi tidak ditemukan atau sudah tidak aktif.');
+      return;
+    }
+    const id = await createJadwal(parsedId.data, parsed.data);
+    response.status(201).json({ id });
+  } catch (error) {
+    respondToDomainError(response, error, () => next(error));
+  }
+});
+
+ojtRouter.patch('/jadwal/:jadwalId', async (request, response, next) => {
+  if (!requireHumanCapital(response, response.locals.actor)) return;
+  const parsedId = idParam.safeParse(request.params.jadwalId);
+  if (!parsedId.success) {
+    fail(response, 400, 'VALIDATION_ERROR', 'Id jadwal tidak valid.');
+    return;
+  }
+  const parsed = updateJadwalBody.safeParse(request.body);
+  if (!parsed.success) {
+    fail(response, 400, 'VALIDATION_ERROR', 'Periksa kembali isian yang ditandai.', fieldErrors(parsed.error));
+    return;
+  }
+  try {
+    if (parsed.data.pengisiNip && !(await findPengisi(parsed.data.pengisiNip))) {
+      fail(response, 400, 'PENGISI_TIDAK_DIKENAL', 'Pengisi materi tidak ditemukan atau sudah tidak aktif.');
+      return;
+    }
+    await updateJadwal(parsedId.data, parsed.data);
+    response.status(200).json({ id: parsedId.data });
+  } catch (error) {
+    respondToDomainError(response, error, () => next(error));
+  }
+});
+
+ojtRouter.delete('/jadwal/:jadwalId', async (request, response, next) => {
+  if (!requireHumanCapital(response, response.locals.actor)) return;
+  const parsedId = idParam.safeParse(request.params.jadwalId);
+  if (!parsedId.success) {
+    fail(response, 400, 'VALIDATION_ERROR', 'Id jadwal tidak valid.');
+    return;
+  }
+  try {
+    if (!(await deleteJadwal(parsedId.data))) {
+      fail(response, 404, 'JADWAL_NOT_FOUND', 'Jadwal materi tidak ditemukan.');
+      return;
+    }
+    response.status(204).end();
   } catch (error) {
     next(error);
   }

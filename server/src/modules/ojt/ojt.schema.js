@@ -70,6 +70,50 @@ export const toggleMateriBody = z.object({
   selesai: z.boolean().optional(),
 });
 
+const jam = z
+  .string()
+  .regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Jam harus format HH:MM');
+
+const jadwalFields = {
+  namaMateri: z
+    .string()
+    .trim()
+    .min(1, 'Nama materi wajib diisi')
+    .max(200, 'Nama materi maksimal 200 karakter'),
+  jamMulai: jam.nullable().optional(),
+  jamSelesai: jam.nullable().optional(),
+  pengisiNip: optionalText(10),
+  catatan: optionalText(400),
+};
+
+/*
+  Both ends are optional on their own, because an all day session has neither, but
+  a session that states one end has to be coherent. Verified here as well as by the
+  check constraint: the constraint is the last line of defence against a bad write
+  from any client, this one is how the user finds out before a round trip.
+*/
+const withJamOrder = (schema) =>
+  schema.refine(
+    (value) =>
+      value.jamMulai === undefined ||
+      value.jamMulai === null ||
+      value.jamSelesai === undefined ||
+      value.jamSelesai === null ||
+      value.jamSelesai > value.jamMulai,
+    {
+      message: 'Jam selesai harus setelah jam mulai',
+      path: ['jamSelesai'],
+    },
+  );
+
+export const createJadwalBody = withJamOrder(
+  z.object({ tanggal: isoDate, ...jadwalFields }),
+);
+
+export const updateJadwalBody = withJamOrder(
+  z.object({ tanggal: isoDate.optional(), ...jadwalFields }).partial(),
+);
+
 export const fieldErrors = (error) => {
   const flattened = z.flattenError(error);
   return { ...flattened.fieldErrors, _root: flattened.formErrors };

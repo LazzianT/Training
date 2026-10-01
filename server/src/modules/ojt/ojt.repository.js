@@ -1,5 +1,5 @@
 import sql from 'mssql';
-import { query } from '../../db/pool.js';
+import { query, transaction } from '../../db/pool.js';
 
 const toDate = (value) => new Date(`${value}T00:00:00Z`);
 const toIso = (value) => (value instanceof Date ? value.toISOString().slice(0, 10) : String(value ?? '').slice(0, 10));
@@ -41,8 +41,177 @@ export const listMateri = async () => {
   }));
 };
 
+/**
+ * Confirms a presenter exists and is still active in HRIS.
+ *
+ * pengisi_nip cannot be a foreign key because hris_Employee has no declared key
+ * to reference and sits outside this schema's write boundary. That leaves a
+ * mistyped NIP able to store happily and then render as a blank presenter
+ * forever, so the check has to happen on the way in.
+ */
+export const findPengisi = async (nip) => {
+  const result = await query(
+    `SELECT TOP 1 e.NIP, LTRIM(RTRIM(e.Name)) AS name, LTRIM(RTRIM(e.DepartID)) AS depart_id
+     FROM dbo.hris_Employee e
+     WHERE e.NIP = @nip AND e.is_Active = '1';`,
+    (request) => request.input('nip', sql.VarChar(10), nip),
+  );
+  const row = result.recordset[0];
+  return row ? { nip: row.NIP, name: row.name, departId: row.depart_id } : null;
+};
+
+export const listJadwal = async (batchId) => {
+  const result = await query(
+    `SELECT j.id, j.batch_id, j.materi_id, j.tanggal, j.jam_mulai, j.jam_selesai,
+            j.pengisi_nip, j.catatan, m.kode AS materi_kode, m.nama AS materi_nama,
+            LTRIM(RTRIM(e.Name)) AS pengisi_nama, LTRIM(RTRIM(e.DepartID)) AS pengisi_departemen
+     FROM dbo.training_ojt_jadwal_materi j
+     JOIN dbo.training_ojt_materi m ON m.id = j.materi_id
+     LEFT JOIN dbo.hris_Employee e ON e.NIP = j.pengisi_nip
+     WHERE j.batch_id = @id
+     ORDER BY j.tanggal, j.jam_mulai, m.urutan;`,
+    (request) => request.input('id', sql.Int, batchId),
+  );
+
+  return result.recordset.map((row) => ({
+    id: row.id,
+    batchId: row.batch_id,
+    materiId: row.materi_id,
+    materiKode: row.materi_kode,
+    materiNama: row.materi_nama,
+    tanggal: toIso(row.tanggal),
+    jamMulai: toTime(row.jam_mulai),
+    jamSelesai: toTime(row.jam_selesai),
+    pengisiNip: row.pengisi_nip ?? null,
+    pengisiNama: row.pengisi_nama ?? null,
+    pengisiDepartemen: row.pengisi_departemen ?? null,
+    catatan: row.catatan ?? null,
+  }));
+};
+
+const toTime = (value) => {
+  if (!value) return null;
+  if (typeof value === 'string') return value.slice(0, 5);
+  const date = value instanceof Date ? value : new Date(value);
+  return `${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')}`;
+};
+
+/**
+ * Resolves a material name to a catalog row, creating it when the name is new.
+
+ * The catalog is shared, so matching on nama alone is not enough: two people can
+ * legitimately call a session "Safety Induction" while one means the half day and
+ * the other the full day. Case and surrounding whitespace are normalised so a
+ * near duplicate does not silently become a second row, and kode is derived from
+ * the catalog's next urutan so the two unique constraints stay satisfied.
+ */
+export const resolveMateri = async (connection, nama) => {
+  const cleaned = nama.trim().replace(/\s+/g, ' ');
+  const { recordset } = await connection
+    .input('nama', sql.NVarChar(200), cleaned)
+    .query('SELECT id, nama FROM dbo.training_ojt_materi WHERE LOWER(nama) = LOWER(@nama);');
+  if (recordset.length > 0) return recordset[0].id;
+
+  const next = await connection.query(`
+    SELECT ISNULL(MAX(urutan), 0) + 1 AS next_urutan FROM dbo.training_ojt_materi WITH (UPDLOCK, HOLDLOCK);`);
+  const urutan = Number(next.recordset[0].next_urutan);
+
+  const inserted = await connection
+    .input('nama', sql.NVarChar(200), cleaned)
+    .input('urutan', sql.Int, urutan)
+    .query(`
+      INSERT INTO dbo.training_ojt_materi (kode, nama, urutan)
+      OUTPUT INSERTED.id
+      VALUES ('M' + CAST(@urutan AS nvarchar(10)), @nama, @urutan);`);
+  return inserted.recordset[0].id;
+};
+
+export const createJadwal = async (batchId, input) => {
+  const batch = await query(
+    'SELECT tanggal_mulai, tanggal_selesai FROM dbo.training_ojt_batch WHERE id = @id;',
+    (request) => request.input('id', sql.Int, batchId),
+  );
+  const row = batch.recordset[0];
+  if (!row) throw Object.assign(new Error('BATCH_NOT_FOUND'), { code: 'BATCH_NOT_FOUND' });
+
+  /*
+    A material scheduled outside the batch window would never appear in the
+    calendar and would quietly slip past every attendance total derived from it.
+    Checked here rather than in a constraint, because the constraint would need
+    the batch's date range, which lives in another table.
+  */
+  if (input.tanggal < toIso(row.tanggal_mulai) || input.tanggal > toIso(row.tanggal_selesai)) {
+    throw Object.assign(new Error('TANGGAL_DI_LUAR_RENTANG'), { code: 'TANGGAL_DI_LUAR_RENTANG' });
+  }
+
+  return transaction(async (tx) => {
+    const materiId = await resolveMateri(tx, input.namaMateri);
+    const result = await tx
+      .input('batchId', sql.Int, batchId)
+      .input('materiId', sql.Int, materiId)
+      .input('tanggal', sql.Date, input.tanggal)
+      .input('jamMulai', sql.Time, input.jamMulai || null)
+      .input('jamSelesai', sql.Time, input.jamSelesai || null)
+      .input('pengisiNip', sql.VarChar(10), input.pengisiNip || null)
+      .input('catatan', sql.NVarChar(400), input.catatan || null)
+      .query(`
+        INSERT INTO dbo.training_ojt_jadwal_materi
+          (batch_id, materi_id, tanggal, jam_mulai, jam_selesai, pengisi_nip, catatan)
+        OUTPUT INSERTED.id
+        VALUES (@batchId, @materiId, @tanggal, @jamMulai, @jamSelesai, @pengisiNip, @catatan);`);
+    return result.recordset[0].id;
+  });
+};
+
+export const updateJadwal = async (jadwalId, input) => {
+  const existing = await query(
+    'SELECT 1 AS found FROM dbo.training_ojt_jadwal_materi WHERE id = @id;',
+    (request) => request.input('id', sql.Int, jadwalId),
+  );
+  if (existing.recordset.length === 0) {
+    throw Object.assign(new Error('JADWAL_NOT_FOUND'), { code: 'JADWAL_NOT_FOUND' });
+  }
+
+  const sets = [];
+  if (input.namaMateri !== undefined) sets.push('materi_id = @materiId');
+  if (input.pengisiNip !== undefined) sets.push('pengisi_nip = @pengisiNip');
+  if (input.jamMulai !== undefined) sets.push('jam_mulai = @jamMulai');
+  if (input.jamSelesai !== undefined) sets.push('jam_selesai = @jamSelesai');
+  if (input.catatan !== undefined) sets.push('catatan = @catatan');
+  if (sets.length === 0) return jadwalId;
+  sets.push('diubah_pada = SYSUTCDATETIME()');
+
+  /*
+    One transaction, because resolving the material name may insert into the
+    catalog. A catalog row committed without the schedule row pointing at it would
+    be an orphan nothing ever cleans up.
+  */
+  await transaction(async (tx) => {
+    if (input.namaMateri !== undefined) {
+      tx.input('materiId', sql.Int, await resolveMateri(tx, input.namaMateri));
+    }
+    if (input.pengisiNip !== undefined) tx.input('pengisiNip', sql.VarChar(10), input.pengisiNip || null);
+    if (input.jamMulai !== undefined) tx.input('jamMulai', sql.Time, input.jamMulai || null);
+    if (input.jamSelesai !== undefined) tx.input('jamSelesai', sql.Time, input.jamSelesai || null);
+    if (input.catatan !== undefined) tx.input('catatan', sql.NVarChar(400), input.catatan || null);
+
+    await tx.input('id', sql.Int, jadwalId).query(`
+      UPDATE dbo.training_ojt_jadwal_materi SET ${sets.join(', ')} WHERE id = @id;`);
+  });
+
+  return jadwalId;
+};
+
+export const deleteJadwal = async (jadwalId) => {
+  const result = await query(
+    'DELETE FROM dbo.training_ojt_jadwal_materi WHERE id = @id;',
+    (request) => request.input('id', sql.Int, jadwalId),
+  );
+  return result.rowsAffected?.[0] === 1;
+};
+
 export const getBatch = async (batchId) => {
-  const [batch, materi, peserta, materiProgress, absensi] = await Promise.all([
+  const [batch, materi, peserta, materiProgress, absensi, jadwal] = await Promise.all([
     query(`
       SELECT b.*, (SELECT COUNT_BIG(*) FROM dbo.training_ojt_peserta p
                     WHERE p.batch_id = b.id AND p.aktif = 1) AS peserta_count
@@ -63,6 +232,7 @@ export const getBatch = async (batchId) => {
       JOIN dbo.training_ojt_peserta p ON p.id = a.peserta_id WHERE p.batch_id = @id
       ORDER BY a.tanggal;`,
       (request) => request.input('id', sql.Int, batchId)),
+    listJadwal(batchId),
   ]);
 
   const row = batch.recordset[0];
@@ -84,6 +254,7 @@ export const getBatch = async (batchId) => {
   return {
     ...mapBatch(row),
     materi,
+    jadwal,
     peserta: peserta.recordset.map((item) => ({
       id: item.id,
       batchId: item.batch_id,

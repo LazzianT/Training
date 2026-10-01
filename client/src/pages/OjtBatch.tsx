@@ -4,12 +4,16 @@ import type { OjtBatchDetail, OjtPesertaDetail } from '@training/contracts';
 import { ApiRequestError } from '../api/auth.js';
 import {
   addOjtPeserta,
+  createOjtJadwal,
   createOjtQr,
+  deleteOjtJadwal,
   fetchOjtBatch,
   fetchOjtResults,
   removeOjtPeserta,
   setOjtBatchStatus,
+  updateOjtJadwal,
 } from '../api/ojt.js';
+import { OjtJadwalCalendar, type JadwalFormInput } from '../components/OjtJadwalCalendar.js';
 import { Button, EmptyState, Field, Panel, StatTile } from '../components/ui/index.js';
 import { CopyButton, useToast } from '../components/Toast.js';
 import { useConfirm } from '../components/ConfirmDialog.js';
@@ -135,6 +139,44 @@ const submitPeserta = async () => {
     }
   };
 
+  const saveJadwal = async (tanggal: string, form: JadwalFormInput) => {
+    if (!session || !batch) return;
+    await createOjtJadwal(session.accessToken, batch.id, {
+      tanggal,
+      namaMateri: form.namaMateri,
+      jamMulai: form.jamMulai || null,
+      jamSelesai: form.jamSelesai || null,
+      pengisiNip: form.pengisiNip || null,
+      catatan: form.catatan || null,
+    });
+    await reload();
+  };
+
+  const editJadwal = async (jadwalId: number, form: Partial<JadwalFormInput>) => {
+    if (!session) return;
+    await updateOjtJadwal(session.accessToken, jadwalId, {
+      namaMateri: form.namaMateri,
+      jamMulai: form.jamMulai || null,
+      jamSelesai: form.jamSelesai || null,
+      pengisiNip: form.pengisiNip || null,
+      catatan: form.catatan || null,
+    });
+    await reload();
+  };
+
+  const dropJadwal = async (jadwalId: number) => {
+    if (!session) return;
+    const ok = await confirm({
+      title: 'Hapus materi ini dari jadwal?',
+      description: 'Jadwal di tanggal itu dihapus. Materi tetap ada di katalog dan bisa dijadwalkan lagi.',
+      confirmLabel: 'Hapus',
+      tone: 'danger',
+    });
+    if (!ok) return;
+    await deleteOjtJadwal(session.accessToken, jadwalId);
+    await reload();
+  };
+
   const removePeserta = async (item: OjtPesertaDetail) => {
     if (!session) return;
     const ok = await confirm({
@@ -177,7 +219,7 @@ const submitPeserta = async () => {
     }
   };
 
-  if (!batch) {
+  if (!batch || !session) {
     return (
       <div data-surface="saas">
         {error ? (
@@ -320,6 +362,17 @@ const submitPeserta = async () => {
         </div>
 </Modal>
 
+
+      <OjtJadwalCalendar
+        token={session.accessToken}
+        tanggalMulai={batch.tanggalMulai}
+        tanggalSelesai={batch.tanggalSelesai}
+        materi={batch.materi}
+        jadwal={batch.jadwal ?? []}
+        onCreate={saveJadwal}
+        onUpdate={editJadwal}
+        onDelete={dropJadwal}
+      />
 
       <Panel title="Assessment" description="QR memakai batch ini untuk pre-test, post-test, feedback, dan absensi." className="enter-section mt-8">
         <div className="p-5">

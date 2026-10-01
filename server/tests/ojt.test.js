@@ -1,7 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app.js';
 import { signAccessToken } from '../src/modules/auth/token.service.js';
-import { addPesertaBody, createBatchBody, setAbsensiBody } from '../src/modules/ojt/ojt.schema.js';
+import {
+  addPesertaBody,
+  createBatchBody,
+  createJadwalBody,
+  setAbsensiBody,
+  updateJadwalBody,
+} from '../src/modules/ojt/ojt.schema.js';
 
 let server;
 let baseUrl;
@@ -132,5 +138,57 @@ describe('ojt schema', () => {
     expect(setAbsensiBody.safeParse(base).success).toBe(true);
     expect(setAbsensiBody.safeParse({ entries: [{ ...base.entries[0], status: 'maybe' }] }).success).toBe(false);
     expect(setAbsensiBody.safeParse({ entries: [] }).success).toBe(false);
+  });
+});
+
+describe('ojt material schedule', () => {
+  const jadwal = { tanggal: '2026-01-05', namaMateri: 'Safety Induction' };
+
+  it('accepts an all day session with neither clock time', () => {
+    expect(createJadwalBody.safeParse(jadwal).success).toBe(true);
+  });
+
+  it('rejects an end time that is not after the start', () => {
+    const parsed = createJadwalBody.safeParse({ ...jadwal, jamMulai: '13:00', jamSelesai: '09:00' });
+    expect(parsed.success).toBe(false);
+    // A matching pair is fine; only the order is the problem.
+    expect(createJadwalBody.safeParse({ ...jadwal, jamMulai: '09:00', jamSelesai: '13:00' }).success).toBe(true);
+  });
+
+  it('allows one end of the range on its own', () => {
+    // Plenty of OJT sessions are a half day or a full day, so a lone end time is
+    // real data rather than an incomplete form.
+    expect(createJadwalBody.safeParse({ ...jadwal, jamMulai: '09:00' }).success).toBe(true);
+    expect(createJadwalBody.safeParse({ ...jadwal, jamSelesai: '13:00' }).success).toBe(true);
+  });
+
+  it('rejects a clock time that is not on the hour or half hour', () => {
+    expect(createJadwalBody.safeParse({ ...jadwal, jamMulai: '9:00' }).success).toBe(false);
+    expect(createJadwalBody.safeParse({ ...jadwal, jamMulai: '25:00' }).success).toBe(false);
+  });
+
+  it('requires a material name', () => {
+    expect(createJadwalBody.safeParse({ tanggal: '2026-01-05' }).success).toBe(false);
+    expect(createJadwalBody.safeParse({ ...jadwal, namaMateri: '  ' }).success).toBe(false);
+  });
+
+  it('treats an empty presenter and note as cleared rather than as text', () => {
+    const parsed = createJadwalBody.safeParse({ ...jadwal, pengisiNip: '', catatan: '' });
+    expect(parsed.success).toBe(true);
+    // Empty strings would store as a literal '' and show as a blank presenter.
+    expect(parsed.data.pengisiNip).toBeNull();
+    expect(parsed.data.catatan).toBeNull();
+  });
+
+  it('takes only the fields it was given on update', () => {
+    // Patch semantics: an absent key means leave it alone, so the client cannot
+    // blank a presenter by forgetting to send it.
+    const parsed = updateJadwalBody.safeParse({ jamMulai: '09:00' });
+    expect(parsed.success).toBe(true);
+    expect(Object.keys(parsed.data)).toEqual(['jamMulai']);
+  });
+
+  it('still rejects an incoherent range when only one end is patched', () => {
+    expect(updateJadwalBody.safeParse({ jamMulai: '13:00', jamSelesai: '09:00' }).success).toBe(false);
   });
 });

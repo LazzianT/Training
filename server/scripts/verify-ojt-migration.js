@@ -5,6 +5,7 @@ const TABLES = [
   'training_ojt_peserta',
   'training_ojt_materi',
   'training_ojt_materi_peserta',
+  'training_ojt_jadwal_materi',
   'training_ojt_absensi',
   'training_ojt_test_set',
   'training_ojt_question_pg',
