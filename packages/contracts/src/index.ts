@@ -175,6 +175,7 @@ export const FEEDBACK_ASPECTS = [
 export type OjtBatchStatus = 'draft' | 'published' | 'closed';
 export type OjtAttendanceStatus = 'hadir' | 'tidak_hadir' | 'izin';
 
+/** Everything a batch detail carries about a material. */
 export type OjtMateri = {
   id: number;
   kode: string;
@@ -183,6 +184,27 @@ export type OjtMateri = {
   urutan: number;
   aktif: boolean;
 };
+
+/**
+ * The catalog as a maintenance screen sees it: inactive rows included, plus how
+ * much history hangs off each material.
+ *
+ * The counts are the reason removal is a deactivation rather than a delete, so
+ * the page can say what would be affected before anyone clicks.
+ */
+export type OjtMateriMaster = OjtMateri & {
+  /** Schedule rows pointing at this material. */
+  jadwalCount: number;
+  /** Participant completions recorded against it. */
+  progresCount: number;
+};
+
+export type CreateOjtMateriRequest = {
+  nama: string;
+  deskripsi?: string | null;
+};
+
+export type UpdateOjtMateriRequest = Partial<CreateOjtMateriRequest>;
 
 export type OjtAbsensi = {
   /** YYYY-MM-DD */

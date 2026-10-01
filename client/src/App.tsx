@@ -13,6 +13,7 @@ import { QuestionEditor } from './pages/QuestionEditor.js';
 import { Login } from './pages/Login.js';
 import { EmployeeMonitoring } from './pages/EmployeeMonitoring.js';
 import { OjtList } from './pages/OjtList.js';
+import { OjtMateriMasterPage } from './pages/OjtMateriMaster.js';
 import { OjtBatchPage } from './pages/OjtBatch.js';
 import { OjtAccessPage } from './pages/OjtAccess.js';
 
@@ -38,7 +39,8 @@ export const App = () => (
     <Route path="/dashboard" element={protectedPage(<Dashboard />)} />
     <Route path="/employee-monitoring" element={protectedPage(<EmployeeMonitoring />)} />
     <Route path="/ojt" element={protectedPage(<OjtList />)} />
-    <Route path="/ojt/:batchId" element={protectedPage(<OjtBatchPage />)} />
+      <Route path="/ojt/materi" element={protectedPage(<OjtMateriMasterPage />)} />
+      <Route path="/ojt/:batchId" element={protectedPage(<OjtBatchPage />)} />
     <Route path="/my-events" element={protectedPage(<MyEvents />)} />
     <Route path="/my-events/:eventId/questions" element={protectedPage(<QuestionEditor />)} />
   <Route path="/events" element={protectedPage(<EventList />)} />

@@ -114,6 +114,24 @@ export const updateJadwalBody = withJamOrder(
   z.object({ tanggal: isoDate.optional(), ...jadwalFields }).partial(),
 );
 
+export const materiBody = z.object({
+  nama: z.string().trim().min(1, 'Nama materi wajib diisi').max(200, 'Nama materi maksimal 200 karakter'),
+  deskripsi: optionalText(2000),
+});
+
+export const updateMateriBody = materiBody.partial().refine(
+  (value) => value.nama !== undefined || value.deskripsi !== undefined,
+  { message: 'Tidak ada perubahan yang dikirim', path: ['nama'] },
+);
+
+export const materiAktifBody = z.object({
+  aktif: z.boolean(),
+});
+
+export const materiMoveBody = z.object({
+  direction: z.union([z.literal(1), z.literal(-1)]),
+});
+
 export const fieldErrors = (error) => {
   const flattened = z.flattenError(error);
   return { ...flattened.fieldErrors, _root: flattened.formErrors };

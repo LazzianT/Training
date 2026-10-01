@@ -3,7 +3,9 @@ import type {
   ApiError,
   CreateOjtBatchRequest,
   CreateOjtJadwalRequest,
+  CreateOjtMateriRequest,
   OjtBatch,
+  OjtMateriMaster,
   OjtBatchDetail,
   OjtBatchStatus,
   OjtQuestionInput,
@@ -11,6 +13,7 @@ import type {
   OjtSavedQuestion,
   OjtTestSet,
   UpdateOjtJadwalRequest,
+  UpdateOjtMateriRequest,
 } from '@training/contracts';
 import { apiBaseUrl, ApiRequestError } from './auth.js';
 
@@ -97,6 +100,34 @@ export const updateOjtJadwal = (token: string, jadwalId: number, body: UpdateOjt
 
 export const deleteOjtJadwal = (token: string, jadwalId: number) =>
   call<void>(`/api/ojt/admin/jadwal/${jadwalId}`, { ...admin(token), method: 'DELETE' });
+
+export const fetchOjtMateriMaster = (token: string, signal?: AbortSignal) =>
+  call<OjtMateriMaster[]>(`/api/ojt/admin/materi/master`, { ...admin(token), signal });
+
+export const createOjtMateri = (token: string, body: CreateOjtMateriRequest) =>
+  call<{ id: number }>(`/api/ojt/admin/materi/master`, {
+    ...admin(token, body),
+    method: 'POST',
+  });
+
+export const updateOjtMateri = (token: string, materiId: number, body: UpdateOjtMateriRequest) =>
+  call<{ id: number }>(`/api/ojt/admin/materi/master/${materiId}`, {
+    ...admin(token, body),
+    method: 'PATCH',
+  });
+
+/** Deactivates or reactivates. Removal is never a delete. */
+export const setOjtMateriAktif = (token: string, materiId: number, aktif: boolean) =>
+  call<{ id: number; aktif: boolean }>(`/api/ojt/admin/materi/master/${materiId}/aktif`, {
+    ...admin(token, { aktif }),
+    method: 'PATCH',
+  });
+
+export const moveOjtMateri = (token: string, materiId: number, direction: 1 | -1) =>
+  call<{ id: number; moved: boolean }>(`/api/ojt/admin/materi/master/${materiId}/move`, {
+    ...admin(token, { direction }),
+    method: 'POST',
+  });
 
 export const recordOjtAbsensi = (
   token: string,

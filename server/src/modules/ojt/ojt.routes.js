@@ -5,16 +5,21 @@ import {
   addPeserta,
   createBatch,
   createJadwal,
+  createMateri,
   deleteJadwal,
   findPengisi,
   getBatch,
+  listAllMateri,
   listBatches,
   listMateri,
+  moveMateri,
   removePeserta,
   setAbsensi,
   setBatchStatus,
+  setMateriAktif,
   toggleMateri,
   updateJadwal,
+  updateMateri,
 } from './ojt.repository.js';
 import {
   addQuestion,
@@ -39,9 +44,13 @@ import {
   createBatchBody,
   createJadwalBody,
   fieldErrors,
+  materiAktifBody,
+  materiBody,
+  materiMoveBody,
   setAbsensiBody,
   toggleMateriBody,
   updateJadwalBody,
+  updateMateriBody,
 } from './ojt.schema.js';
 
 const fail = (response, status, code, message, details) => {
@@ -84,6 +93,89 @@ ojtRouter.get('/materi', async (_request, response, next) => {
     response.status(200).json(await listMateri());
   } catch (error) {
     next(error);
+  }
+});
+
+/* ------------------------------------------------------------------- master materi */
+
+/*
+  The catalog itself, as a maintenance screen rather than a picker: it shows
+  inactive rows and how many schedules and completions point at each material,
+  because that count is the reason removal is a deactivation.
+*/
+ojtRouter.get('/materi/master', async (request, response, next) => {
+  if (!requireHumanCapital(response, response.locals.actor)) return;
+  try {
+    response.status(200).json(await listAllMateri());
+  } catch (error) {
+    next(error);
+  }
+});
+
+ojtRouter.post('/materi/master', async (request, response, next) => {
+  if (!requireHumanCapital(response, response.locals.actor)) return;
+  const parsed = materiBody.safeParse(request.body);
+  if (!parsed.success) {
+    fail(response, 400, 'VALIDATION_ERROR', 'Periksa kembali isian yang ditandai.', fieldErrors(parsed.error));
+    return;
+  }
+  try {
+    response.status(201).json({ id: await createMateri(parsed.data) });
+  } catch (error) {
+    respondToDomainError(response, error, () => next(error));
+  }
+});
+
+ojtRouter.patch('/materi/master/:materiId', async (request, response, next) => {
+  if (!requireHumanCapital(response, response.locals.actor)) return;
+  const parsedId = idParam.safeParse(request.params.materiId);
+  if (!parsedId.success) {
+    fail(response, 400, 'VALIDATION_ERROR', 'Id materi tidak valid.');
+    return;
+  }
+  const parsed = updateMateriBody.safeParse(request.body);
+  if (!parsed.success) {
+    fail(response, 400, 'VALIDATION_ERROR', 'Periksa kembali isian yang ditandai.', fieldErrors(parsed.error));
+    return;
+  }
+  try {
+    await updateMateri(parsedId.data, parsed.data);
+    response.status(200).json({ id: parsedId.data });
+  } catch (error) {
+    respondToDomainError(response, error, () => next(error));
+  }
+});
+
+ojtRouter.patch('/materi/master/:materiId/aktif', async (request, response, next) => {
+  if (!requireHumanCapital(response, response.locals.actor)) return;
+  const parsedId = idParam.safeParse(request.params.materiId);
+  const parsed = materiAktifBody.safeParse(request.body);
+  if (!parsedId.success || !parsed.success) {
+    fail(response, 400, 'VALIDATION_ERROR', 'Permintaan tidak valid.');
+    return;
+  }
+  try {
+    await setMateriAktif(parsedId.data, parsed.data.aktif);
+    response.status(200).json({ id: parsedId.data, aktif: parsed.data.aktif });
+  } catch (error) {
+    respondToDomainError(response, error, () => next(error));
+  }
+});
+
+ojtRouter.post('/materi/master/:materiId/move', async (request, response, next) => {
+  if (!requireHumanCapital(response, response.locals.actor)) return;
+  const parsedId = idParam.safeParse(request.params.materiId);
+  const parsed = materiMoveBody.safeParse(request.body);
+  if (!parsedId.success || !parsed.success) {
+    fail(response, 400, 'VALIDATION_ERROR', 'Permintaan tidak valid.');
+    return;
+  }
+  try {
+    const moved = await moveMateri(parsedId.data, parsed.data.direction);
+    // Not an error: the material is already first or already last.
+    response.status(200).json({ id: parsedId.data, moved });
+  } catch (error) {
+    respondToDomainError(response, error, () => next(error));
   }
 });
 
@@ -275,6 +367,8 @@ const DOMAIN_ERRORS = {
     'PENGISI_TIDAK_DIKENAL',
     'Pengisi materi tidak ditemukan atau sudah tidak aktif.',
   ],
+  MATERI_SUDAH_ADA: [409, 'MATERI_SUDAH_ADA', 'Materi dengan nama itu sudah ada di katalog.'],
+  MATERI_NOT_FOUND: [404, 'MATERI_NOT_FOUND', 'Materi tidak ditemukan.'],
 };
 
 const respondToDomainError = (response, error, fallback) => {

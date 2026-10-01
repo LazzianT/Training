@@ -49,6 +49,155 @@ export const listMateri = async () => {
  * mistyped NIP able to store happily and then render as a blank presenter
  * forever, so the check has to happen on the way in.
  */
+/**
+ * Every catalog row, including the inactive ones.
+ *
+ * The master list is a maintenance screen, not a picker, so hiding deactivated
+ * rows there would make them impossible to bring back.
+ */
+export const listAllMateri = async () => {
+  const result = await query(
+    `SELECT m.id, m.kode, m.nama, m.deskripsi, m.urutan, m.aktif,
+            (SELECT COUNT_BIG(*) FROM dbo.training_ojt_jadwal_materi j WHERE j.materi_id = m.id) AS jadwal_count,
+            (SELECT COUNT_BIG(*) FROM dbo.training_ojt_materi_peserta p WHERE p.materi_id = m.id) AS progres_count
+     FROM dbo.training_ojt_materi m
+     ORDER BY m.urutan, m.nama;`,
+  );
+  return result.recordset.map((row) => ({
+    id: row.id,
+    kode: row.kode,
+    nama: row.nama,
+    deskripsi: row.deskripsi ?? null,
+    urutan: Number(row.urutan),
+    aktif: Boolean(row.aktif),
+    jadwalCount: Number(row.jadwal_count),
+    progresCount: Number(row.progres_count),
+  }));
+};
+
+export const createMateri = async (input) => {
+  const cleaned = input.nama.trim().replace(/\s+/g, ' ');
+  const clash = await query(
+    'SELECT 1 AS found FROM dbo.training_ojt_materi WHERE LOWER(nama) = LOWER(@nama);',
+    (request) => request.input('nama', sql.NVarChar(200), cleaned),
+  );
+  if (clash.recordset.length > 0) {
+    throw Object.assign(new Error('MATERI_SUDAH_ADA'), { code: 'MATERI_SUDAH_ADA' });
+  }
+
+  return transaction(async (tx) => {
+    /*
+      The whole read of MAX(urutan) and the insert share one transaction with an
+      update lock held, otherwise two people adding a material at the same moment
+      both read the same next value and one loses the race on the unique kode.
+    */
+    const next = await tx.query(
+      'SELECT ISNULL(MAX(urutan), 0) + 1 AS next_urutan FROM dbo.training_ojt_materi WITH (UPDLOCK, HOLDLOCK);',
+    );
+    const urutan = Number(next.recordset[0].next_urutan);
+    const result = await tx
+      .input('nama', sql.NVarChar(200), cleaned)
+      .input('deskripsi', sql.NVarChar(2000), input.deskripsi || null)
+      .input('urutan', sql.Int, urutan)
+      .query(`
+        INSERT INTO dbo.training_ojt_materi (kode, nama, deskripsi, urutan)
+        OUTPUT INSERTED.id
+        VALUES ('M' + CAST(@urutan AS nvarchar(10)), @nama, @deskripsi, @urutan);`);
+    return result.recordset[0].id;
+  });
+};
+
+export const updateMateri = async (materiId, input) => {
+  const sets = [];
+  if (input.nama !== undefined) sets.push('nama = @nama');
+  if (input.deskripsi !== undefined) sets.push('deskripsi = @deskripsi');
+  if (sets.length === 0) return materiId;
+
+  const result = await query(
+    `UPDATE dbo.training_ojt_materi SET ${sets.join(', ')} WHERE id = @id;`,
+    (binder) => {
+      const req = binder.input('id', sql.Int, materiId);
+      if (input.nama !== undefined) req.input('nama', sql.NVarChar(200), input.nama.trim().replace(/\s+/g, ' '));
+      if (input.deskripsi !== undefined) req.input('deskripsi', sql.NVarChar(2000), input.deskripsi || null);
+      return req;
+    },
+  );
+  if (result.rowsAffected?.[0] === 0) {
+    throw Object.assign(new Error('MATERI_NOT_FOUND'), { code: 'MATERI_NOT_FOUND' });
+  }
+  return materiId;
+};
+
+/**
+ * Deactivates rather than deletes.
+ *
+ * training_ojt_jadwal_materi and training_ojt_materi_peserta both reference this
+ * table, and those rows are real history: a schedule that ran and a participant
+ * who completed it. A hard delete would take the history with it, so removal is
+ * expressed as aktif = 0 and the rows stay reachable.
+ */
+export const setMateriAktif = async (materiId, aktif) => {
+  const result = await query(
+    'UPDATE dbo.training_ojt_materi SET aktif = @aktif WHERE id = @id;',
+    (request) => request.input('id', sql.Int, materiId).input('aktif', sql.Bit, aktif),
+  );
+  if (result.rowsAffected?.[0] === 0) {
+    throw Object.assign(new Error('MATERI_NOT_FOUND'), { code: 'MATERI_NOT_FOUND' });
+  }
+  return materiId;
+};
+
+/**
+ * Moves a material one slot up or down in the curriculum order.
+ *
+ * Done as a swap rather than a renumber-everything pass, and the two rows are
+ * pushed to temporary negative values first: urutan carries a UNIQUE constraint,
+ * so writing the target value while the current occupant still holds it would
+ * fail partway and leave the order half applied.
+ */
+export const moveMateri = async (materiId, direction) => {
+  return transaction(async (tx) => {
+    const current = await tx
+      .input('id', sql.Int, materiId)
+      .query('SELECT id, urutan FROM dbo.training_ojt_materi WITH (UPDLOCK, HOLDLOCK) WHERE id = @id;');
+    const row = current.recordset[0];
+    if (!row) throw Object.assign(new Error('MATERI_NOT_FOUND'), { code: 'MATERI_NOT_FOUND' });
+
+    const neighbour = await tx
+      .input('urutan', sql.Int, row.urutan + direction)
+      .query('SELECT id, urutan FROM dbo.training_ojt_materi WHERE urutan = @urutan;');
+    const other = neighbour.recordset[0];
+    // Already at the end of the list. Not an error: the button just does nothing.
+    if (!other) return false;
+
+    /*
+      urutan carries a UNIQUE constraint, so both rows are parked on negative
+      values before taking each other's slot. Writing them straight through would
+      fail the moment the target value is still held, and the move would end up
+      half applied.
+    */
+    await tx
+      .input('aId', sql.Int, row.id)
+      .input('bId', sql.Int, other.id)
+      .input('aSeq', sql.Int, row.urutan)
+      .input('bSeq', sql.Int, other.urutan)
+      .query(`
+        UPDATE dbo.training_ojt_materi
+        SET urutan = CASE WHEN id = @aId THEN -@aSeq ELSE -@bSeq END
+        WHERE id IN (@aId, @bId);`);
+    await tx
+      .input('aId', sql.Int, row.id)
+      .input('bId', sql.Int, other.id)
+      .input('aSeq', sql.Int, row.urutan)
+      .input('bSeq', sql.Int, other.urutan)
+      .query(`
+        UPDATE dbo.training_ojt_materi
+        SET urutan = CASE WHEN id = @aId THEN @bSeq ELSE @aSeq END
+        WHERE id IN (@aId, @bId);`);
+    return true;
+  });
+};
+
 export const findPengisi = async (nip) => {
   const result = await query(
     `SELECT TOP 1 e.NIP, LTRIM(RTRIM(e.Name)) AS name, LTRIM(RTRIM(e.DepartID)) AS depart_id
