@@ -40,18 +40,13 @@ export const createBatchBody = z
     path: ['tanggalSelesai'],
   });
 
+/**
+ * The participant code is generated server side and is never accepted from the
+ * client. Department and position were dropped with it: an OJT participant is
+ * not in HRIS yet, so those fields were always guesses.
+ */
 export const addPesertaBody = z.object({
-  kodePeserta: z
-    .string()
-    .trim()
-    .min(1, 'Kode peserta wajib diisi')
-    .max(50)
-    .regex(/^[A-Za-z0-9._-]+$/, 'Kode peserta hanya boleh huruf, angka, titik, garis, dan strip')
-    .transform((value) => value.toUpperCase()),
   namaLengkap: z.string().trim().min(1, 'Nama lengkap wajib diisi').max(200, 'Nama maksimal 200 karakter'),
-  departemen: optionalText(200),
-  jabatan: optionalText(200),
-  tanggalMasuk: isoDate.nullable().optional(),
 });
 
 export const setAbsensiBody = z.object({

@@ -240,11 +240,8 @@ export type CreateOjtBatchRequest = {
 };
 
 export type AddOjtPesertaRequest = {
-  kodePeserta: string;
+  /** The participant code is generated server side, never sent by the client. */
   namaLengkap: string;
-  departemen?: string | null;
-  jabatan?: string | null;
-  tanggalMasuk?: string | null;
 };
 
 export type SetOjtAbsensiRequest = {

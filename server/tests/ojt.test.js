@@ -105,19 +105,22 @@ describe('OJT participant access', () => {
 });
 
 describe('ojt schema', () => {
-  it('uppercases the batch and participant codes so they compare consistently', () => {
+  it('uppercases the batch code so it compares consistently', () => {
     const batch = createBatchBody.safeParse(validBatch);
     expect(batch.success).toBe(true);
     expect(batch.data.kode).toBe('OJT-2026-01');
-
-    const peserta = addPesertaBody.safeParse({ kodePeserta: 'ojt-001', namaLengkap: 'Budi' });
-    expect(peserta.success).toBe(true);
-    expect(peserta.data.kodePeserta).toBe('OJT-001');
   });
 
-  it('requires a participant name and a well formed code', () => {
-    expect(addPesertaBody.safeParse({ kodePeserta: 'OJT-001', namaLengkap: '   ' }).success).toBe(false);
-    expect(addPesertaBody.safeParse({ kodePeserta: 'OJT/001', namaLengkap: 'Budi' }).success).toBe(false);
+  it('ignores a participant code sent by the client', () => {
+    const parsed = addPesertaBody.safeParse({ kodePeserta: 'OJT-999', namaLengkap: 'Budi' });
+    expect(parsed.success).toBe(true);
+    // Zod strips unknown keys, so the client cannot choose its own code.
+    expect(parsed.data).not.toHaveProperty('kodePeserta');
+  });
+
+  it('requires a participant name', () => {
+    expect(addPesertaBody.safeParse({ namaLengkap: '   ' }).success).toBe(false);
+    expect(addPesertaBody.safeParse({}).success).toBe(false);
   });
 
   it('rejects a calendar date that does not exist', () => {

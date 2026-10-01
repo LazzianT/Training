@@ -71,7 +71,7 @@ export const OjtBatchPage = () => {
   const [qr, setQr] = useState<{ purpose: string; url: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState<Record<number, OjtAttendanceStatus>>({});
-  const [pesertaDraft, setPesertaDraft] = useState({ kodePeserta: '', namaLengkap: '', departemen: '', jabatan: '' });
+  const [pesertaDraft, setPesertaDraft] = useState({ namaLengkap: '' });
 
   useEffect(() => {
     if (!session || !Number.isInteger(id)) return;
@@ -134,10 +134,14 @@ export const OjtBatchPage = () => {
     if (!session || !batch) return;
     setSaving(true);
     try {
-      await addOjtPeserta(session.accessToken, batch.id, pesertaDraft);
-      setPesertaDraft({ kodePeserta: '', namaLengkap: '', departemen: '', jabatan: '' });
+const created = await addOjtPeserta(session.accessToken, batch.id, pesertaDraft);
+      setPesertaDraft({ namaLengkap: '' });
       await reload();
-      push({ tone: 'success', title: 'Peserta ditambahkan' });
+      push({
+        tone: 'success',
+        title: `${created.kodePeserta} dibuat`,
+        description: 'Berikan kode ini kepada peserta untuk mengisi assessment.',
+      });
     } catch (reason) {
       push({
         tone: 'danger',
@@ -323,44 +327,20 @@ export const OjtBatchPage = () => {
         />
       </section>
 
-      <Panel title="Tambah Peserta" description="Kode peserta diberikan HR dan dipakai peserta saat membuka assessment." className="enter-section mt-8">
+<Panel
+        title="Tambah Peserta"
+        description="Kode peserta dibuat otomatis oleh sistem dan dipakai peserta saat membuka assessment."
+        className="enter-section mt-8"
+      >
         <div className="grid gap-5 p-5">
-          <div className="grid gap-5 sm:grid-cols-2">
-            <Field id="ojt-kode-peserta" label="Kode peserta" hint="Contoh: OJT-001">
-              {(field) => (
-                <input
-                  value={pesertaDraft.kodePeserta}
-                  onChange={(change) => setPesertaDraft((previous) => ({ ...previous, kodePeserta: change.target.value }))}
-                  {...field}
-                  className={field.className}
-                />
-              )}
-            </Field>
+          <div className="max-w-sm">
             <Field id="ojt-nama" label="Nama lengkap">
               {(field) => (
                 <input
                   value={pesertaDraft.namaLengkap}
-                  onChange={(change) => setPesertaDraft((previous) => ({ ...previous, namaLengkap: change.target.value }))}
-                  {...field}
-                  className={field.className}
-                />
-              )}
-            </Field>
-            <Field id="ojt-departemen" label="Departemen" optional>
-              {(field) => (
-                <input
-                  value={pesertaDraft.departemen}
-                  onChange={(change) => setPesertaDraft((previous) => ({ ...previous, departemen: change.target.value }))}
-                  {...field}
-                  className={field.className}
-                />
-              )}
-            </Field>
-            <Field id="ojt-jabatan" label="Jabatan" optional>
-              {(field) => (
-                <input
-                  value={pesertaDraft.jabatan}
-                  onChange={(change) => setPesertaDraft((previous) => ({ ...previous, jabatan: change.target.value }))}
+                  onChange={(change) => setPesertaDraft({ namaLengkap: change.target.value })}
+                  placeholder="Nama sesuai KTP"
+                  autoComplete="off"
                   {...field}
                   className={field.className}
                 />
@@ -370,7 +350,7 @@ export const OjtBatchPage = () => {
           <div>
             <Button
               type="button"
-              disabled={saving || !pesertaDraft.kodePeserta.trim() || !pesertaDraft.namaLengkap.trim()}
+              disabled={saving || !pesertaDraft.namaLengkap.trim()}
               onClick={savePeserta}
             >
               {saving ? 'Menyimpan...' : 'Tambah Peserta'}

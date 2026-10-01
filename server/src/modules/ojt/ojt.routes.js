@@ -156,7 +156,7 @@ ojtRouter.post('/batches/:id/peserta', async (request, response, next) => {
     return;
   }
   try {
-    response.status(201).json({ id: await addPeserta(parsedId.data, parsed.data) });
+    response.status(201).json(await addPeserta(parsedId.data, parsed.data.namaLengkap));
   } catch (error) {
     if (error?.message?.startsWith('BATCH_NOT_FOUND')) {
       fail(response, 404, 'BATCH_NOT_FOUND', 'Batch OJT tidak ditemukan.');

@@ -73,7 +73,7 @@ export const setOjtBatchStatus = (token: string, batchId: number, status: OjtBat
   });
 
 export const addOjtPeserta = (token: string, batchId: number, body: AddOjtPesertaRequest) =>
-  call<{ id: number }>(`/api/ojt/admin/batches/${batchId}/peserta`, {
+  call<{ id: number; kodePeserta: string }>(`/api/ojt/admin/batches/${batchId}/peserta`, {
     ...admin(token, body),
     method: 'POST',
   });

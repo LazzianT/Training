@@ -130,26 +130,25 @@ export const createBatch = async (input, actorNip) => {
  * Deactivate rather than delete: attendance, test answers and feedback already
  * reference this person, and losing that history would make the OJT record
  * incomplete for a decision that can be reversed.
+ *
+ * The code comes from a sequence, so it is unique across the whole table and two
+ * people added at the same moment cannot receive the same one.
  */
-export const addPeserta = async (batchId, input) => {
+export const addPeserta = async (batchId, namaLengkap) => {
   const result = await query(`
     DECLARE @exists int = (SELECT COUNT(*) FROM dbo.training_ojt_batch WHERE id = @batchId);
     IF @exists = 0 THROW 51000, 'BATCH_NOT_FOUND', 1;
 
-    INSERT INTO dbo.training_ojt_peserta
-      (batch_id, kode_peserta, nama_lengkap, departemen, jabatan, tanggal_masuk)
-    OUTPUT INSERTED.id
-    VALUES (@batchId, @kodePeserta, @namaLengkap, @departemen, @jabatan, @tanggalMasuk);`,
+    DECLARE @kode nvarchar(50) =
+      'OJT-' + RIGHT('00000' + CAST(NEXT VALUE FOR dbo.training_ojt_peserta_kode_seq AS nvarchar(10)), 5);
+
+    INSERT INTO dbo.training_ojt_peserta (batch_id, kode_peserta, nama_lengkap)
+    OUTPUT INSERTED.id, INSERTED.kode_peserta
+    VALUES (@batchId, @kode, @namaLengkap);`,
     (request) =>
-      request
-        .input('batchId', sql.Int, batchId)
-        .input('kodePeserta', sql.NVarChar(50), input.kodePeserta)
-        .input('namaLengkap', sql.NVarChar(200), input.namaLengkap)
-        .input('departemen', sql.NVarChar(200), input.departemen ?? null)
-        .input('jabatan', sql.NVarChar(200), input.jabatan ?? null)
-        .input('tanggalMasuk', sql.Date, input.tanggalMasuk ? toDate(input.tanggalMasuk) : null),
+      request.input('batchId', sql.Int, batchId).input('namaLengkap', sql.NVarChar(200), namaLengkap),
   );
-  return Number(result.recordset[0].id);
+  return { id: Number(result.recordset[0].id), kodePeserta: result.recordset[0].kode_peserta };
 };
 
 export const removePeserta = async (pesertaId) => {
