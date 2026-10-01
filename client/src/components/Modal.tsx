@@ -34,18 +34,31 @@ export const Modal = ({
 }: ModalProps) => {
   const panelRef = useRef<HTMLDivElement>(null);
   const restoreRef = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   const titleId = 'modal-title';
   const descriptionId = 'modal-description';
 
   useEffect(() => {
     if (!open) return;
     restoreRef.current = document.activeElement as HTMLElement | null;
-    panelRef.current?.querySelector<HTMLElement>(FOCUSABLE)?.focus();
+
+    /*
+      Prefer the first form control over the first focusable node. The close
+      button sits first in the DOM, so focusing it would drop the caret on the
+      one control that should not be the next keystroke.
+    */
+    const panel = panelRef.current;
+    const target =
+      panel?.querySelector<HTMLElement>('[data-autofocus]') ??
+      panel?.querySelector<HTMLElement>('input, select, textarea') ??
+      panel?.querySelector<HTMLElement>(FOCUSABLE);
+    target?.focus();
 
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (event.key !== 'Tab' || !panelRef.current) return;
@@ -70,7 +83,7 @@ export const Modal = ({
       document.body.style.overflow = previousOverflow;
       restoreRef.current?.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
