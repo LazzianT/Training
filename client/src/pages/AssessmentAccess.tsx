@@ -16,8 +16,6 @@ type Access = {
   date: string;
   room: string | null;
   expiresAt: string;
-  /** OJT participants are not in HRIS; they identify themselves with an HR code. */
-  isOjt?: boolean;
 };
 type Assessment = Access & { questions: { id: number; number: number; text: string; options: Record<string, string> }[] };
 
@@ -30,7 +28,6 @@ const labels: Record<Purpose, string> = {
 
 const isTest = (purpose: Purpose) => purpose === 'pre_test' || purpose === 'post_test';
 
-const IDENTITY_LABEL = 'NIP';
 
 export const AssessmentAccess = () => {
   const { token } = useParams();
@@ -160,10 +157,7 @@ const submit = async () => {
   };
 
   const isFeedback = access.purpose === 'feedback';
-  const identityLabel = access.isOjt ? 'Kode peserta' : IDENTITY_LABEL;
-  const identityHint = access.isOjt
-    ? 'Kode yang diberikan HR, contoh OJT-001. Nama peserta sudah terdaftar di batch ini.'
-    : 'Sesuai data karyawan di HR.';
+
   const isAttendance = access.purpose === 'attendance';
   const showTest = !isAttendance && !isFeedback && assessment !== null;
 
@@ -211,14 +205,14 @@ const submit = async () => {
             <>
               {isAttendance && (
                 <div className="grid gap-5">
-                  <Field id="attendance-nip" label={identityLabel} hint={identityHint}>
+                  <Field id="attendance-nip" label="NIP" hint="Sesuai data karyawan di HR.">
                     {(field) => (
                       <input
                         inputMode="numeric"
                         autoComplete="off"
                         value={nip}
                         onChange={(event) => setNip(event.target.value)}
-                        placeholder={access.isOjt ? 'Contoh OJT-001' : 'Masukkan NIP'}
+                        placeholder="Masukkan NIP"
                         {...field}
                         className={inputClass()}
                       />
@@ -235,14 +229,14 @@ const submit = async () => {
 
               {!isAttendance && !assessment && (
                 <div className="grid gap-5">
-                  <Field id="access-nip" label={identityLabel} hint={identityHint}>
+                  <Field id="access-nip" label="NIP" hint="Sesuai data karyawan di HR.">
                     {(field) => (
                       <input
                         inputMode="numeric"
                         autoComplete="off"
                         value={nip}
                         onChange={(event) => setNip(event.target.value)}
-                        placeholder={access.isOjt ? 'Contoh OJT-001' : 'Masukkan NIP'}
+                        placeholder="Masukkan NIP"
                         {...field}
                         className={inputClass()}
                       />

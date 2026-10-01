@@ -10,7 +10,7 @@ import { dashboardRouter } from './modules/dashboard/dashboard.routes.js';
 import { employeeRouter } from './modules/employee/employee.routes.js';
 import { eventRouter } from './modules/event/event.routes.js';
 import { assessmentRouter } from './modules/assessment/assessment.routes.js';
-import { ojtRouter } from './modules/ojt/ojt.routes.js';
+import { ojtRouter, ojtPublicRouter } from './modules/ojt/ojt.routes.js';
 
 export const createApp = () => {
   const app = express();
@@ -44,7 +44,8 @@ export const createApp = () => {
   app.use('/api/employees', employeeRouter);
   app.use('/api/events', eventRouter);
   app.use('/api/assessment', assessmentRouter);
-  app.use('/api/ojt', ojtRouter);
+  app.use('/api/ojt', ojtPublicRouter);
+  app.use('/api/ojt/admin', ojtRouter);
 
   app.use((_request, response) => {
     response.status(404).json({

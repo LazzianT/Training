@@ -220,8 +220,6 @@ export type OjtBatch = {
   status: OjtBatchStatus;
   lokasi: string | null;
   catatan: string | null;
-  /** The mirrored training_acara row that carries the assessment chain. */
-  eventId: number;
   dibuatOlehNip: string;
   dibuatPada: string;
   pesertaCount: number;
@@ -251,4 +249,61 @@ export type AddOjtPesertaRequest = {
 
 export type SetOjtAbsensiRequest = {
   entries: { pesertaId: number; tanggal: string; status: OjtAttendanceStatus; catatan?: string | null }[];
+};
+
+/** OJT keeps its own assessment tables, so its shapes are their own too. */
+export type OjtTestSet = {
+  id: number;
+  type: 'pg' | 'essay' | 'mixed';
+  date: string;
+  questionCount: number;
+  status: 'draft' | 'published' | 'closed';
+  publishedAt: string | null;
+};
+
+export type OjtSavedQuestion = { id: number; type: 'pg' | 'essay'; number: number; text: string };
+
+export type OjtQuestionInput = {
+  type: 'pg' | 'essay';
+  text: string;
+  a?: string;
+  b?: string;
+  c?: string;
+  d?: string;
+  correct?: 'A' | 'B' | 'C' | 'D';
+  instructions?: string;
+  answerGuide?: string;
+  imageData?: string;
+  point?: number;
+};
+
+export type OjtResults = {
+  submissions: {
+    phase: 'pre' | 'post';
+    kodePeserta: string;
+    name: string;
+    status: string;
+    score: number;
+    totalScore: number;
+    percentage: number | null;
+  }[];
+  attendance: { kodePeserta: string; name: string; hariHadir: number }[];
+};
+
+/** The unauthenticated participant payload behind an OJT QR. */
+export type OjtAccess = {
+  batchId: number;
+  purpose: 'pre_test' | 'post_test' | 'feedback' | 'attendance';
+  title: string;
+  lokasi: string | null;
+  tanggalMulai: string;
+  tanggalSelesai: string;
+};
+
+export type OjtQuestion = {
+  id: number;
+  number: number;
+  text: string;
+  image: string | null;
+  options: Record<string, string>;
 };

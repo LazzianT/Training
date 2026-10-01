@@ -43,13 +43,13 @@ const validBatch = {
 
 describe('OJT authorisation', () => {
   it('rejects an unauthenticated request', async () => {
-    const response = await fetch(`${baseUrl}/api/ojt/batches`);
+    const response = await fetch(`${baseUrl}/api/ojt/admin/batches`);
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toMatchObject({ error: { code: 'UNAUTHENTICATED' } });
   });
 
   it('keeps OJT away from everyone outside Human Capital', async () => {
-    const response = await fetch(`${baseUrl}/api/ojt/batches`, {
+    const response = await fetch(`${baseUrl}/api/ojt/admin/batches`, {
       headers: { Authorization: `Bearer ${tokenFor({ departId: '0040' })}` },
     });
     expect(response.status).toBe(403);
@@ -59,7 +59,7 @@ describe('OJT authorisation', () => {
 
 describe('OJT request validation', () => {
   it('rejects a malformed batch before touching the database', async () => {
-    const response = await fetch(`${baseUrl}/api/ojt/batches`, {
+    const response = await fetch(`${baseUrl}/api/ojt/admin/batches`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tokenFor()}` },
       body: JSON.stringify({ ...validBatch, kode: 'batch dengan spasi' }),
@@ -71,7 +71,7 @@ describe('OJT request validation', () => {
   });
 
   it('refuses an end date before the start date', async () => {
-    const response = await fetch(`${baseUrl}/api/ojt/batches`, {
+    const response = await fetch(`${baseUrl}/api/ojt/admin/batches`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tokenFor()}` },
       body: JSON.stringify({ ...validBatch, tanggalMulai: '2026-01-09', tanggalSelesai: '2026-01-05' }),
@@ -79,6 +79,28 @@ describe('OJT request validation', () => {
     expect(response.status).toBe(400);
     const body = await response.json();
     expect(body.error.details.tanggalSelesai).toBeTruthy();
+  });
+});
+
+describe('OJT participant access', () => {
+  it('is not auth gated, because a participant has no account', async () => {
+    const response = await fetch(`${baseUrl}/api/ojt/access/token-yang-tidak-ada`);
+    // No database in this suite, so the lookup fails and the handler reaches the
+    // error middleware. A 401 here would mean the route were auth gated.
+    expect(response.status).not.toBe(401);
+    expect(response.status).toBe(500);
+  });
+
+  it('requires a participant code to open a form', async () => {
+    const response = await fetch(`${baseUrl}/api/ojt/access/token-yang-tidak-ada/open`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    // Validation runs before the token is resolved, so an empty code is rejected
+    // without touching the database.
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({ error: { code: 'VALIDATION_ERROR' } });
   });
 });
 

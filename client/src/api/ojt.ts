@@ -5,25 +5,17 @@ import type {
   OjtBatch,
   OjtBatchDetail,
   OjtBatchStatus,
-  OjtMateri,
+  OjtQuestionInput,
+  OjtResults,
+  OjtSavedQuestion,
+  OjtTestSet,
 } from '@training/contracts';
-import {
-  createEventQr,
-  fetchAssessmentResults,
-  type AssessmentResults,
-  type QrAccess,
-} from './events.js';
-
-export type { AssessmentResults };
-export const fetchAssessmentResultsForEvent = fetchAssessmentResults;
-export const createQrForEvent = createEventQr;
-export type QrPurpose = QrAccess['purpose'];
-
 import { apiBaseUrl, ApiRequestError } from './auth.js';
 
 type FieldErrors = Record<string, string[] | undefined> & { _root?: string[] };
 
-const call = async <T>(path: string, init: RequestInit = {}): Promise<T> => {
+/** Shared transport so the admin and public surfaces report failures identically. */
+const call = async <T>(path: string, init: RequestInit = {}, anonymous = false): Promise<T> => {
   let response: Response;
   try {
     response = await fetch(`${apiBaseUrl}${path}`, init);
@@ -32,9 +24,13 @@ const call = async <T>(path: string, init: RequestInit = {}): Promise<T> => {
     throw new ApiRequestError('NETWORK_ERROR', 'Tidak dapat menghubungi server', 0);
   }
 
-  if (response.status === 401) throw new ApiRequestError('TOKEN_EXPIRED', 'Sesi berakhir. Masuk kembali.', 401);
+  if (!anonymous && response.status === 401) {
+    throw new ApiRequestError('TOKEN_EXPIRED', 'Sesi berakhir. Masuk kembali.', 401);
+  }
   if (!response.ok) {
-    const body = (await response.json().catch(() => null)) as (ApiError & { error?: { details?: FieldErrors } }) | null;
+    const body = (await response.json().catch(() => null)) as
+      | (ApiError & { error?: { details?: FieldErrors } })
+      | null;
     throw new ApiRequestError(
       body?.error?.code ?? body?.error.code ?? 'UNKNOWN_ERROR',
       body?.error?.message ?? body?.error.message ?? 'Permintaan gagal.',
@@ -46,7 +42,7 @@ const call = async <T>(path: string, init: RequestInit = {}): Promise<T> => {
   return (await response.json()) as T;
 };
 
-const auth = (token: string, json?: unknown): RequestInit => ({
+const admin = (token: string, json?: unknown): RequestInit => ({
   headers: {
     Authorization: `Bearer ${token}`,
     ...(json === undefined ? {} : { 'Content-Type': 'application/json' }),
@@ -54,44 +50,129 @@ const auth = (token: string, json?: unknown): RequestInit => ({
   ...(json === undefined ? {} : { body: JSON.stringify(json) }),
 });
 
+const send = (json: unknown): RequestInit => ({
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(json),
+});
+
+/* ------------------------------------------------------------------- admin side */
+
 export const fetchOjtBatches = (token: string, signal?: AbortSignal) =>
-  call<OjtBatch[]>('/api/ojt/batches', { ...auth(token), signal });
+  call<OjtBatch[]>('/api/ojt/admin/batches', { ...admin(token), signal });
 
 export const fetchOjtBatch = (token: string, batchId: number, signal?: AbortSignal) =>
-  call<OjtBatchDetail>(`/api/ojt/batches/${batchId}`, { ...auth(token), signal });
-
-export const fetchOjtMateri = (token: string, signal?: AbortSignal) =>
-  call<OjtMateri[]>('/api/ojt/materi', { ...auth(token), signal });
+  call<OjtBatchDetail>(`/api/ojt/admin/batches/${batchId}`, { ...admin(token), signal });
 
 export const createOjtBatch = (token: string, body: CreateOjtBatchRequest) =>
-  call<OjtBatch>('/api/ojt/batches', { ...auth(token, body), method: 'POST' });
+  call<OjtBatch>('/api/ojt/admin/batches', { ...admin(token, body), method: 'POST' });
 
 export const setOjtBatchStatus = (token: string, batchId: number, status: OjtBatchStatus) =>
-  call<{ status: OjtBatchStatus }>(`/api/ojt/batches/${batchId}/status`, {
-    ...auth(token, { status }),
+  call<{ status: OjtBatchStatus }>(`/api/ojt/admin/batches/${batchId}/status`, {
+    ...admin(token, { status }),
     method: 'PATCH',
   });
 
 export const addOjtPeserta = (token: string, batchId: number, body: AddOjtPesertaRequest) =>
-  call<{ id: number }>(`/api/ojt/batches/${batchId}/peserta`, { ...auth(token, body), method: 'POST' });
+  call<{ id: number }>(`/api/ojt/admin/batches/${batchId}/peserta`, {
+    ...admin(token, body),
+    method: 'POST',
+  });
 
 export const removeOjtPeserta = (token: string, pesertaId: number) =>
-  call<void>(`/api/ojt/peserta/${pesertaId}`, { ...auth(token), method: 'DELETE' });
+  call<void>(`/api/ojt/admin/peserta/${pesertaId}`, { ...admin(token), method: 'DELETE' });
 
 export const recordOjtAbsensi = (
   token: string,
   batchId: number,
-  entries: { pesertaId: number; tanggal: string; status: 'hadir' | 'tidak_hadir' | 'izin'; catatan?: string | null }[],
-) => call<{ recorded: number }>(`/api/ojt/batches/${batchId}/absensi`, { ...auth(token, { entries }), method: 'POST' });
+  entries: { pesertaId: number; tanggal: string; status: 'hadir' | 'tidak_hadir' | 'izin' }[],
+) =>
+  call<{ recorded: number }>(`/api/ojt/admin/batches/${batchId}/absensi`, {
+    ...admin(token, { entries }),
+    method: 'POST',
+  });
 
 export const setOjtMateriDone = (token: string, batchId: number, pesertaId: number, materiId: number, selesai: boolean) =>
-  call<{ selesai: boolean }>(`/api/ojt/batches/${batchId}/materi`, {
-    ...auth(token, { pesertaId, materiId, selesai }),
+  call<{ selesai: boolean }>(`/api/ojt/admin/batches/${batchId}/materi`, {
+    ...admin(token, { pesertaId, materiId, selesai }),
     method: 'POST',
   });
 
-export const createOjtQr = (token: string, batchId: number, purpose: 'pre_test' | 'post_test' | 'feedback' | 'attendance') =>
-  call<{ token: string; url: string }>(`/api/assessment/events/${batchId}/qr`, {
-    ...auth(token, { purpose }),
+export const fetchOjtTestSets = (token: string, batchId: number, signal?: AbortSignal) =>
+  call<OjtTestSet[]>(`/api/ojt/admin/batches/${batchId}/test-sets`, { ...admin(token), signal });
+
+export const createOjtTestSet = (token: string, batchId: number, type: 'pg' | 'essay' | 'mixed') =>
+  call<{ id: number }>(`/api/ojt/admin/batches/${batchId}/test-sets`, {
+    ...admin(token, { type }),
     method: 'POST',
   });
+
+export const fetchOjtQuestions = (token: string, testSetId: number, signal?: AbortSignal) =>
+  call<OjtSavedQuestion[]>(`/api/ojt/admin/test-sets/${testSetId}/questions`, {
+    ...admin(token),
+    signal,
+  });
+
+export const addOjtQuestion = (token: string, testSetId: number, body: OjtQuestionInput) =>
+  call<{ ok: true }>(`/api/ojt/admin/test-sets/${testSetId}/questions`, {
+    ...admin(token, body),
+    method: 'POST',
+  });
+
+export const deleteOjtQuestion = (token: string, testSetId: number, questionId: number) =>
+  call<void>(`/api/ojt/admin/test-sets/${testSetId}/questions/${questionId}`, {
+    ...admin(token),
+    method: 'DELETE',
+  });
+
+export const publishOjtTestSet = (token: string, testSetId: number) =>
+  call<{ status: 'published' }>(`/api/ojt/admin/test-sets/${testSetId}/publish`, {
+    ...admin(token),
+    method: 'POST',
+  });
+
+export const fetchOjtResults = (token: string, batchId: number, signal?: AbortSignal) =>
+  call<OjtResults>(`/api/ojt/admin/batches/${batchId}/results`, { ...admin(token), signal });
+
+export const createOjtQr = (
+  token: string,
+  batchId: number,
+  purpose: 'pre_test' | 'post_test' | 'feedback' | 'attendance',
+) =>
+  call<{ token: string; url: string }>(`/api/ojt/admin/batches/${batchId}/qr`, {
+    ...admin(token, { purpose }),
+    method: 'POST',
+  });
+
+/* --------------------------------------------------------------- participant side */
+
+/** Anonymous: this runs before the participant has any account. */
+export const fetchOjtAccess = (qrToken: string, signal?: AbortSignal) =>
+  call<import('@training/contracts').OjtAccess>(
+    `/api/ojt/access/${encodeURIComponent(qrToken)}`,
+    { signal },
+    true,
+  );
+
+export const openOjtAccess = (qrToken: string, kodePeserta: string, signatureData?: string) =>
+  call<{
+    nama: string;
+    sessionId?: number;
+    questions?: import('@training/contracts').OjtQuestion[];
+    recorded?: boolean;
+  }>(
+    `/api/ojt/access/${encodeURIComponent(qrToken)}/open`,
+    { ...send(signatureData ? { kodePeserta, signatureData } : { kodePeserta }), method: 'POST' },
+    true,
+  );
+
+export const submitOjtAnswers = (qrToken: string, body: unknown) =>
+  call<{ ok: true }>(`/api/ojt/access/${encodeURIComponent(qrToken)}/submit`, {
+    ...send(body),
+    method: 'POST',
+  }, true);
+
+export const submitOjtFeedback = (qrToken: string, body: unknown) =>
+  call<{ ok: true }>(`/api/ojt/access/${encodeURIComponent(qrToken)}/feedback`, {
+    ...send(body),
+    method: 'POST',
+  }, true);

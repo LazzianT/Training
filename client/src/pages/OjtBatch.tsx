@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import type { OjtBatchDetail, OjtPesertaDetail, OjtAttendanceStatus } from '@training/contracts';
-import { useAuth } from '../auth/AuthContext.js';
+import type { OjtAttendanceStatus, OjtBatchDetail, OjtPesertaDetail } from '@training/contracts';
 import { ApiRequestError } from '../api/auth.js';
 import {
   addOjtPeserta,
-  createQrForEvent,
-  fetchAssessmentResultsForEvent,
+  createOjtQr,
   fetchOjtBatch,
+  fetchOjtResults,
   recordOjtAbsensi,
   removeOjtPeserta,
   setOjtBatchStatus,
@@ -16,6 +15,8 @@ import {
 import { Button, EmptyState, Field, Panel, StatTile } from '../components/ui/index.js';
 import { CopyButton, useToast } from '../components/Toast.js';
 import { useConfirm } from '../components/ConfirmDialog.js';
+import { useAuth } from '../auth/AuthContext.js';
+import type { OjtResults } from '@training/contracts';
 import { shortDate } from '../lib/date.js';
 
 const DAY_LABELS = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
@@ -64,7 +65,7 @@ export const OjtBatchPage = () => {
   const confirm = useConfirm();
 
   const [batch, setBatch] = useState<OjtBatchDetail | null>(null);
-  const [results, setResults] = useState<Awaited<ReturnType<typeof fetchAssessmentResultsForEvent>> | null>(null);
+  const [results, setResults] = useState<OjtResults | null>(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [qr, setQr] = useState<{ purpose: string; url: string } | null>(null);
@@ -89,7 +90,7 @@ export const OjtBatchPage = () => {
   useEffect(() => {
     if (!session || !batch) return;
     const controller = new AbortController();
-    fetchAssessmentResultsForEvent(session.accessToken, batch.eventId)
+    fetchOjtResults(session.accessToken, batch.id, controller.signal)
       .then(setResults)
       .catch(() => undefined);
     return () => controller.abort();
@@ -247,7 +248,7 @@ export const OjtBatchPage = () => {
   const makeQr = async (purpose: (typeof QR_PURPOSES)[number]['value']) => {
     if (!session || !batch) return;
     try {
-      const created = await createQrForEvent(session.accessToken, batch.eventId, purpose);
+      const created = await createOjtQr(session.accessToken, batch.id, purpose);
       setQr({ purpose, url: created.url });
     } catch (reason) {
       push({
@@ -518,13 +519,7 @@ export const OjtBatchPage = () => {
               >
                 QR {purpose.label}
               </Button>
-            ))}
-            <Link
-              to={`/events/${batch.eventId}`}
-              className="flex h-9 items-center border border-slate-900 bg-slate-900 px-3 text-xs font-semibold text-white outline-none transition duration-150 hover:bg-slate-700 focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
-            >
-              Kelola Soal
-            </Link>
+))}
           </div>
 
           {qr && (
@@ -546,19 +541,32 @@ export const OjtBatchPage = () => {
         </div>
       </Panel>
 
-      {results && results.submissions.length > 0 && (
-        <Panel title="Hasil Post-test" description="Nilai akhir peserta pada batch ini." className="enter-section mt-8">
+{results && results.submissions.length > 0 && (
+        <Panel
+          title="Hasil Post-test"
+          description="Nilai akhir peserta pada batch ini, beserta jumlah hari hadir."
+          className="enter-section mt-8"
+        >
           <ul className="divide-y divide-slate-100">
             {results.submissions
               .filter((item) => item.phase === 'post')
-              .map((item) => (
-                <li key={item.nip} className="flex items-center justify-between gap-3 px-5 py-3">
-                  <span className="min-w-0 truncate text-sm text-slate-900">{item.name}</span>
-                  <span className="shrink-0 text-sm font-semibold text-slate-900 tabular-nums">
-                    {item.percentage ?? '-'}%
-                  </span>
-                </li>
-              ))}
+              .map((item) => {
+                const hadir = results.attendance.find((row) => row.kodePeserta === item.kodePeserta);
+                return (
+                  <li key={item.kodePeserta} className="flex items-center justify-between gap-3 px-5 py-3">
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm text-slate-900">{item.name}</span>
+                      <span className="block text-xs text-slate-500 tabular-nums">
+                        {item.kodePeserta}
+                        {hadir ? ` · ${hadir.hariHadir} hari hadir` : ''}
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-sm font-semibold text-slate-900 tabular-nums">
+                      {item.percentage ?? '-'}%
+                    </span>
+                  </li>
+                );
+              })}
           </ul>
         </Panel>
       )}

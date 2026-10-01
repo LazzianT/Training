@@ -13,7 +13,6 @@ const mapBatch = (row) => ({
   status: row.status,
   lokasi: row.lokasi ?? null,
   catatan: row.catatan ?? null,
-  eventId: row.event_id,
   dibuatOlehNip: row.dibuat_oleh_nip,
   dibuatPada: row.dibuat_pada instanceof Date ? row.dibuat_pada.toISOString() : String(row.dibuat_pada),
   pesertaCount: Number(row.peserta_count ?? 0),
@@ -101,43 +100,25 @@ export const getBatch = async (batchId) => {
 };
 
 /**
- * Creates the mirrored training_acara row and the batch in one transaction.
- * The acara row is what carries the assessment chain: every FK in
- * training_test_set, training_test_session, training_feedback and
- * training_certificate is keyed on (event_id, participant_nip), so a batch that
- * owns an acara can use those tables untouched.
+ * A batch is a standalone row. Nothing is written to training_acara, so OJT can
+ * never surface in the training dashboard, the event list, or certificates.
  */
 export const createBatch = async (input, actorNip) => {
   const result = await query(`
-    BEGIN TRANSACTION;
-    DECLARE @eventId int;
-
-    INSERT INTO dbo.training_acara
-      (judul, tgl, sasaran, materi_pokok, waktu_mulai, waktu_selesai, ruang_id, status, created_by_nip, updated_by_nip, kind)
-    OUTPUT INSERTED.id
-    VALUES
-      (@judul, @tanggalMulai, @sasaran, @materiPokok, '08:00:00', '17:00:00', NULL, 'draft', @nip, @nip, 'ojt');
-
-    SET @eventId = SCOPE_IDENTITY();
-
     INSERT INTO dbo.training_ojt_batch
-      (kode, judul, tanggal_mulai, tanggal_selesai, status, lokasi, catatan, event_id, dibuat_oleh_nip)
-    VALUES
-      (@kode, @judul, @tanggalMulai, @tanggalSelesai, 'draft', @lokasi, @catatan, @eventId, @nip);
-
-    COMMIT TRANSACTION;
+      (kode, judul, tanggal_mulai, tanggal_selesai, status, lokasi, catatan, dibuat_oleh_nip)
+    OUTPUT INSERTED.id
+    VALUES (@kode, @judul, @tanggalMulai, @tanggalSelesai, 'draft', @lokasi, @catatan, @nip);
 
     SELECT b.*, (SELECT COUNT_BIG(*) FROM dbo.training_ojt_peserta p
                   WHERE p.batch_id = b.id AND p.aktif = 1) AS peserta_count
-    FROM dbo.training_ojt_batch b WHERE b.event_id = @eventId;`,
+    FROM dbo.training_ojt_batch b WHERE b.id = SCOPE_IDENTITY();`,
     (request) =>
       request
         .input('kode', sql.NVarChar(50), input.kode)
         .input('judul', sql.NVarChar(200), input.judul)
         .input('tanggalMulai', sql.Date, toDate(input.tanggalMulai))
         .input('tanggalSelesai', sql.Date, toDate(input.tanggalSelesai))
-        .input('sasaran', sql.NVarChar(sql.MAX), `Peserta OJT batch ${input.kode}`)
-        .input('materiPokok', sql.NVarChar(sql.MAX), input.catatan ?? null)
         .input('lokasi', sql.NVarChar(200), input.lokasi ?? null)
         .input('catatan', sql.NVarChar(sql.MAX), input.catatan ?? null)
         .input('nip', sql.NVarChar(50), actorNip),
@@ -146,26 +127,19 @@ export const createBatch = async (input, actorNip) => {
 };
 
 /**
- * A participant gets two rows: the authoritative OJT record, plus a mirrored
- * training_peserta_acara row whose participant_nip holds the HR code. That
- * mirrored row is what every existing assessment FK resolves against.
+ * Deactivate rather than delete: attendance, test answers and feedback already
+ * reference this person, and losing that history would make the OJT record
+ * incomplete for a decision that can be reversed.
  */
 export const addPeserta = async (batchId, input) => {
   const result = await query(`
-    BEGIN TRANSACTION;
-    DECLARE @eventId int = (SELECT event_id FROM dbo.training_ojt_batch WHERE id = @batchId);
-    IF @eventId IS NULL THROW 51000, 'BATCH_NOT_FOUND', 1;
+    DECLARE @exists int = (SELECT COUNT(*) FROM dbo.training_ojt_batch WHERE id = @batchId);
+    IF @exists = 0 THROW 51000, 'BATCH_NOT_FOUND', 1;
 
     INSERT INTO dbo.training_ojt_peserta
       (batch_id, kode_peserta, nama_lengkap, departemen, jabatan, tanggal_masuk)
     OUTPUT INSERTED.id
-    VALUES (@batchId, @kodePeserta, @namaLengkap, @departemen, @jabatan, @tanggalMasuk);
-
-    INSERT INTO dbo.training_peserta_acara
-      (event_id, participant_nip, participant_name, department_name)
-    VALUES (@eventId, @kodePeserta, @namaLengkap, @departemen);
-
-    COMMIT TRANSACTION;`,
+    VALUES (@batchId, @kodePeserta, @namaLengkap, @departemen, @jabatan, @tanggalMasuk);`,
     (request) =>
       request
         .input('batchId', sql.Int, batchId)
@@ -179,21 +153,8 @@ export const addPeserta = async (batchId, input) => {
 };
 
 export const removePeserta = async (pesertaId) => {
-  const result = await query(`
-    BEGIN TRANSACTION;
-    DECLARE @eventId int = (
-      SELECT b.event_id FROM dbo.training_ojt_peserta p
-      JOIN dbo.training_ojt_batch b ON b.id = p.batch_id WHERE p.id = @pesertaId);
-    DECLARE @kode nvarchar(50) = (SELECT kode_peserta FROM dbo.training_ojt_peserta WHERE id = @pesertaId);
-
-    -- Deactivate instead of delete: attendance, test answers, and feedback
-    -- still reference this person and must not lose their history.
-    UPDATE dbo.training_ojt_peserta SET aktif = 0 WHERE id = @pesertaId;
-    UPDATE dbo.training_peserta_acara
-      SET invitation_status = 'skipped'
-      WHERE event_id = @eventId AND participant_nip = @kode;
-
-    COMMIT TRANSACTION;`,
+  const result = await query(
+    `UPDATE dbo.training_ojt_peserta SET aktif = 0 WHERE id = @pesertaId;`,
     (request) => request.input('pesertaId', sql.Int, pesertaId),
   );
   return (result.rowsAffected[0] ?? 0) > 0;
@@ -251,12 +212,8 @@ export const toggleMateri = async (pesertaId, materiId, selesai, actorNip) => {
 };
 
 export const setBatchStatus = async (batchId, status) => {
-  const result = await query(`
-    BEGIN TRANSACTION;
-    DECLARE @eventId int = (SELECT event_id FROM dbo.training_ojt_batch WHERE id = @batchId);
-    UPDATE dbo.training_ojt_batch SET status = @status WHERE id = @batchId;
-    UPDATE dbo.training_acara SET status = @status, updated_at = SYSUTCDATETIME() WHERE id = @eventId;
-    COMMIT TRANSACTION;`,
+  const result = await query(
+    `UPDATE dbo.training_ojt_batch SET status = @status WHERE id = @batchId;`,
     (request) => request.input('batchId', sql.Int, batchId).input('status', sql.VarChar(20), status),
   );
   return result.rowsAffected;

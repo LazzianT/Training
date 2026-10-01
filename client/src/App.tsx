@@ -14,6 +14,7 @@ import { Login } from './pages/Login.js';
 import { EmployeeMonitoring } from './pages/EmployeeMonitoring.js';
 import { OjtList } from './pages/OjtList.js';
 import { OjtBatchPage } from './pages/OjtBatch.js';
+import { OjtAccessPage } from './pages/OjtAccess.js';
 
 const RequireAuth = ({ children }: { children: ReactElement }) => {
   const { session } = useAuth();
@@ -32,6 +33,8 @@ export const App = () => (
   <Routes>
     <Route path="/login" element={<Login />} />
     <Route path="/assessment/access/:token" element={<AssessmentAccess />} />
+    {/* Public: an OJT participant reaches this by scanning a QR and has no account. */}
+    <Route path="/ojt/access/:token" element={<OjtAccessPage />} />
     <Route path="/dashboard" element={protectedPage(<Dashboard />)} />
     <Route path="/employee-monitoring" element={protectedPage(<EmployeeMonitoring />)} />
     <Route path="/ojt" element={protectedPage(<OjtList />)} />
