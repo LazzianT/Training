@@ -372,19 +372,35 @@ export type OjtQuestionInput = {
   point?: number;
 };
 
+/**
+ * One participant's result on one phase of one material.
+ *
+ * Three states, kept apart because they mean different things to whoever chases
+ * the missing ones. `belum` never started. `mengerjakan` has an open session, and
+ * showing that as blank would send someone after a participant who is halfway
+ * through. `tanpa_nilai` is locked with nothing gradeable, which an essay-only
+ * bank produces; that is not a score of zero and must not read as one.
+ */
+export type OjtScoreCell = {
+  state: 'belum' | 'mengerjakan' | 'selesai' | 'tanpa_nilai';
+  score: number | null;
+  totalScore: number | null;
+  percentage: number | null;
+};
+
 export type OjtResults = {
-  /** One row per participant per material per phase. */
-  submissions: {
-    phase: 'pre' | 'post';
-    kodePeserta: string;
-    name: string;
-    status: string;
+  /** Scores for every participant against every material the batch teaches. */
+  byMateri: {
     materiId: number;
     materiKode: string;
     materiNama: string;
-    score: number;
-    totalScore: number;
-    percentage: number | null;
+    tanggal: string;
+    peserta: {
+      kodePeserta: string;
+      namaLengkap: string;
+      pre: OjtScoreCell;
+      post: OjtScoreCell;
+    }[];
   }[];
   attendance: {
     kodePeserta: string;

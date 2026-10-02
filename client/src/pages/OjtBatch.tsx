@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import type { OjtAssessmentSummary, OjtBatchDetail, OjtPesertaDetail } from '@training/contracts';
+import type { OjtAssessmentSummary, OjtBatchDetail, OjtPesertaDetail, OjtScoreCell } from '@training/contracts';
 import { ApiRequestError } from '../api/auth.js';
 import {
   addOjtPeserta,
@@ -30,6 +30,30 @@ const weekdayLabel = (iso: string) => {
   const [year, month, day] = iso.split('-').map(Number);
   if (!year || !month || !day) return '';
   return WEEKDAYS[new Date(year, month - 1, day).getDay()];
+};
+
+/**
+ * One pre-test or post-test result.
+ *
+ * "Belum mengerjakan" is spelled out rather than left blank. An empty cell reads
+ * as missing data or a rendering fault, and the whole point of this table is to
+ * show who has not done it yet.
+ */
+const ScoreCell = ({ cell }: { cell: OjtScoreCell }) => {
+  if (cell.state === 'selesai') {
+    return (
+      <span className="text-sm font-semibold text-slate-900 tabular-nums">
+        {cell.percentage === null ? `${cell.score}/${cell.totalScore}` : `${cell.percentage}%`}
+      </span>
+    );
+  }
+  if (cell.state === 'mengerjakan') {
+    return <span className="text-xs font-semibold text-amber-700">Sedang mengerjakan</span>;
+  }
+  if (cell.state === 'tanpa_nilai') {
+    return <span className="text-xs text-slate-500">Tidak ada soal dinilai</span>;
+  }
+  return <span className="text-xs text-slate-400">Belum mengerjakan</span>;
 };
 
 /** Weekdays only: OJT runs Monday to Friday, and a Saturday row would be noise. */
@@ -131,16 +155,23 @@ export const OjtBatchPage = () => {
       (sum, item) => sum + item.absensi.filter((entry) => entry.status === 'hadir').length,
       0,
     );
-    const post = results?.submissions.filter((item) => item.phase === 'post') ?? [];
-    const scored = post.filter((item) => item.percentage !== null);
+    /*
+      Averaged across every material and participant, so it is a rough read on the
+      batch rather than a per-person figure. Only locked papers with a gradeable
+      total count: a paper still being worked on has no score yet, and counting it
+      as zero would drag the average down for someone mid-test.
+    */
+    const postCells = (results?.byMateri ?? []).flatMap((materi) =>
+      materi.peserta.map((person) => person.post).filter((cell) => cell.state === 'selesai' && cell.percentage !== null),
+    );
     return {
       peserta: total,
       materiRate: materiTotal === 0 ? 0 : Math.round((materiDone / materiTotal) * 100),
       hadirRate: cells === 0 ? 0 : Math.round((hadir / cells) * 100),
       postScore:
-        scored.length === 0
+        postCells.length === 0
           ? null
-          : Math.round(scored.reduce((sum, item) => sum + (item.percentage ?? 0), 0) / scored.length),
+          : Math.round(postCells.reduce((sum, cell) => sum + (cell.percentage ?? 0), 0) / postCells.length),
     };
   }, [batch, days.length, results]);
 
@@ -539,42 +570,66 @@ const submitPeserta = async () => {
         onClose={() => setOpenMateri(null)}
       />
 
-      {results && results.submissions.length > 0 && (
+      {results && results.byMateri.length > 0 && (
         <Panel
-          title="Hasil Post-test"
-          description="Nilai post-test per materi, beserta jumlah materi yang diikuti peserta."
+          title="Nilai Pre-test dan Post-test"
+          description="Semua peserta batch ini, termasuk yang belum mengerjakan."
           className="enter-section mt-8"
         >
-          <ul className="divide-y divide-slate-100">
-            {/*
-              Keyed on participant and material, not participant alone. A batch
-              teaches several materials now, so one participant has one post-test
-              score per material and keying on the code alone collapsed them onto
-              a single arbitrary row.
-            */}
-            {results.submissions
-              .filter((item) => item.phase === 'post')
-              .map((item) => {
-                const hadir = results.attendance.find((row) => row.kodePeserta === item.kodePeserta);
-                return (
-                  <li
-                    key={`${item.kodePeserta}-${item.materiId}`}
-                    className="flex items-center justify-between gap-3 px-5 py-3"
-                  >
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm text-slate-900">{item.name}</span>
-                      <span className="block text-xs text-slate-500 tabular-nums">
-                        {item.kodePeserta} · {item.materiNama}
-                        {hadir ? ` · ${hadir.materiHadir} materi diikuti` : ''}
-                      </span>
-                    </span>
-                    <span className="shrink-0 text-sm font-semibold text-slate-900 tabular-nums">
-                      {item.percentage ?? '-'}%
-                    </span>
-                  </li>
-                );
-              })}
-          </ul>
+          <div className="divide-y divide-slate-100">
+            {results.byMateri.map((materi) => (
+              <section key={materi.materiId} className="px-4 py-4 sm:px-5">
+                <header className="flex flex-wrap items-baseline justify-between gap-2">
+                  <h3 className="text-sm font-semibold text-slate-900">{materi.materiNama}</h3>
+                  <span className="text-xs text-slate-500">
+                    {shortDate(materi.tanggal)} · {materi.materiKode}
+                  </span>
+                </header>
+
+                {materi.peserta.length === 0 ? (
+                  <p className="mt-2 text-xs text-slate-500">Belum ada peserta di batch ini.</p>
+                ) : (
+                  <div className="mt-3 overflow-x-auto">
+                    <table className="w-full min-w-[28rem]">
+                      <thead>
+                        <tr className="border-b border-slate-200">
+                          <th scope="col" className="py-2 pr-3 text-left text-[11px] font-semibold tracking-[0.1em] text-slate-500 uppercase">
+                            Peserta
+                          </th>
+                          <th scope="col" className="px-3 py-2 text-right text-[11px] font-semibold tracking-[0.1em] text-slate-500 uppercase">
+                            Pre-test
+                          </th>
+                          <th scope="col" className="py-2 pl-3 text-right text-[11px] font-semibold tracking-[0.1em] text-slate-500 uppercase">
+                            Post-test
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {materi.peserta.map((person) => (
+                          <tr key={person.kodePeserta} className="border-b border-slate-100 last:border-b-0">
+                            <th scope="row" className="py-2.5 pr-3 text-left">
+                              <span className="block truncate text-sm font-medium text-slate-900">
+                                {person.namaLengkap}
+                              </span>
+                              <span className="block text-xs text-slate-500 tabular-nums">
+                                {person.kodePeserta}
+                              </span>
+                            </th>
+                            <td className="px-3 py-2.5 text-right align-middle">
+                              <ScoreCell cell={person.pre} />
+                            </td>
+                            <td className="py-2.5 pl-3 text-right align-middle">
+                              <ScoreCell cell={person.post} />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
+            ))}
+          </div>
         </Panel>
       )}
 

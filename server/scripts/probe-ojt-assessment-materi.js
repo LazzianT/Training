@@ -388,13 +388,39 @@ const run = async () => {
     );
     expect('two attendance rows for one participant one day', Number(absRows.recordset[0].n), 2);
 
-    console.log('\nresults are per material');
+    console.log('\nresults list every participant, including the ones who did nothing');
     const results = await call(`/api/ojt/admin/batches/${batchId}/results`, admin);
     expect('results status', results.status, 200);
-    const scored = results.body.submissions.filter((s) => s.phase === 'pre');
-    expect('one pre-test submission', scored.length, 1);
-    expect('submission names the material', scored[0]?.materiNama, materiA);
-    expect('full marks', scored[0]?.percentage, 100);
+
+    const forA = results.body.byMateri.find((row) => row.materiNama === materiA);
+    const forB = results.body.byMateri.find((row) => row.materiNama === materiB);
+    expect('results include A', Boolean(forA), true);
+    expect('results include B', Boolean(forB), true);
+
+    /*
+      The reason this view was rebuilt. Listing sessions could only ever show who
+      had worked; the roster has to be the starting point or the people who have
+      not started are invisible, which is exactly who the report is for.
+    */
+    expect('roster row count matches the batch', forA?.peserta.length, detail.body.peserta.length);
+
+    const mine = forA.peserta.find((row) => row.kodePeserta === peserta.kodePeserta);
+    expect('my pre-test is scored', mine?.pre.state, 'selesai');
+    expect('full marks', mine?.pre.percentage, 100);
+    expect('my post-test is untouched', mine?.post.state, 'belum');
+    expect('untouched has no score', mine?.post.percentage, null);
+
+    const others = forA.peserta.filter((row) => row.kodePeserta !== peserta.kodePeserta);
+    if (others.length > 0) {
+      expect(
+        'everyone else reads as not started',
+        others.every((row) => row.pre.state === 'belum' && row.post.state === 'belum'),
+        true,
+      );
+    }
+
+    /* Material B has no question bank, so nobody can have a score against it. */
+    expect('B has no scores', forB.peserta.every((row) => row.pre.state === 'belum'), true);
     /*
       The breakdown has one row per material scheduled in the batch, which
       includes whatever else this batch already had on the calendar. Asserting a

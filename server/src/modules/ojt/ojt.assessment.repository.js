@@ -551,60 +551,103 @@ export const recordAttendance = async (batchId, materiId, pesertaId, signatureDa
   return 'OK';
 };
 
-/** Read-only report, per material, restricted to the batch's own participants. */
+/**
+ * Scores for every participant against every material the batch teaches.
+ *
+ * Built from the roster outward rather than from the sessions inward, which is
+ * the whole point: a session row only exists once somebody starts, so listing
+ * sessions can only ever show who has worked and never who has not. The question
+ * HR actually asks is about the people who have not.
+ *
+ * The three states are distinct on purpose. No session at all is "belum
+ * mengerjakan". A session that exists but is not locked is "sedang mengerjakan",
+ * and showing that as a blank would read as not started and send someone chasing
+ * a participant who is halfway through. Locked with nothing gradeable, which is
+ * what an essay-only bank produces, is its own case rather than a score of zero:
+ * zero is a result, and reporting it for an unanswered paper would be wrong.
+ */
 export const getResults = async (batchId) => {
-  const [submissions, perPeserta, perMateri] = await Promise.all([
-    query(`
-      SELECT s.phase, p.nama_lengkap, p.kode_peserta, s.status,
-             m.id AS materi_id, m.kode AS materi_kode, m.nama AS materi_nama, m.urutan,
-             COALESCE(SUM(g.score), 0) AS score, COALESCE(SUM(q.point), 0) AS total_score
-      FROM dbo.training_ojt_test_session s
-      JOIN dbo.training_ojt_peserta p ON p.id = s.peserta_id
-      JOIN dbo.training_ojt_test_set ts ON ts.id = s.test_set_id
-      JOIN dbo.training_ojt_materi m ON m.id = ts.materi_id
-      LEFT JOIN dbo.training_ojt_answer_pg a ON a.session_id = s.id
-      LEFT JOIN dbo.training_ojt_question_pg q ON q.id = a.question_id
-      LEFT JOIN dbo.training_ojt_answer_grade_pg g ON g.answer_id = a.id
-      WHERE p.batch_id = @batchId
-      GROUP BY s.phase, p.nama_lengkap, p.kode_peserta, s.status, m.id, m.kode, m.nama, m.urutan
-      ORDER BY m.urutan, s.phase, p.nama_lengkap;`,
+  const [peserta, jadwal, sessions, perPeserta, perMateri] = await Promise.all([
+    query(
+      `SELECT id, kode_peserta, nama_lengkap FROM dbo.training_ojt_peserta
+       WHERE batch_id = @batchId AND aktif = 1 ORDER BY nama_lengkap, kode_peserta;`,
+      (request) => request.input('batchId', sql.Int, batchId),
+    ),
+    query(
+      `SELECT j.materi_id, j.tanggal, m.kode AS materi_kode, m.nama AS materi_nama, m.urutan
+       FROM dbo.training_ojt_jadwal_materi j
+       JOIN dbo.training_ojt_materi m ON m.id = j.materi_id
+       WHERE j.batch_id = @batchId
+       ORDER BY j.tanggal, m.urutan;`,
+      (request) => request.input('batchId', sql.Int, batchId),
+    ),
+    query(
+      `SELECT s.peserta_id, ts.materi_id, s.phase, s.status,
+              COALESCE(SUM(g.score), 0) AS score, COALESCE(SUM(q.point), 0) AS total_score
+       FROM dbo.training_ojt_test_session s
+       JOIN dbo.training_ojt_test_set ts ON ts.id = s.test_set_id
+       LEFT JOIN dbo.training_ojt_answer_pg a ON a.session_id = s.id
+       LEFT JOIN dbo.training_ojt_question_pg q ON q.id = a.question_id
+       LEFT JOIN dbo.training_ojt_answer_grade_pg g ON g.answer_id = a.id
+       WHERE s.peserta_id IN (SELECT id FROM dbo.training_ojt_peserta WHERE batch_id = @batchId AND aktif = 1)
+       GROUP BY s.peserta_id, ts.materi_id, s.phase, s.status;`,
       (request) => request.input('batchId', sql.Int, batchId)),
-    query(`
-      SELECT p.kode_peserta, p.nama_lengkap,
-             COUNT(a.id) AS materi_hadir,
-             COUNT(DISTINCT a.tanggal) AS hari_hadir
-      FROM dbo.training_ojt_peserta p
-      LEFT JOIN dbo.training_ojt_absensi a ON a.peserta_id = p.id AND a.status = 'hadir'
-      WHERE p.batch_id = @batchId AND p.aktif = 1
-      GROUP BY p.kode_peserta, p.nama_lengkap ORDER BY p.nama_lengkap;`,
+    query(
+      `SELECT p.kode_peserta, p.nama_lengkap,
+              COUNT(a.id) AS materi_hadir,
+              COUNT(DISTINCT a.tanggal) AS hari_hadir
+       FROM dbo.training_ojt_peserta p
+       LEFT JOIN dbo.training_ojt_absensi a ON a.peserta_id = p.id AND a.status = 'hadir'
+       WHERE p.batch_id = @batchId AND p.aktif = 1
+       GROUP BY p.kode_peserta, p.nama_lengkap ORDER BY p.nama_lengkap;`,
       (request) => request.input('batchId', sql.Int, batchId)),
-    query(`
-      SELECT m.id AS materi_id, m.kode AS materi_kode, m.nama AS materi_nama, m.urutan,
-             j.tanggal, COUNT(a.id) AS hadir
-      FROM dbo.training_ojt_jadwal_materi j
-      JOIN dbo.training_ojt_materi m ON m.id = j.materi_id
-      LEFT JOIN dbo.training_ojt_absensi a ON a.materi_id = m.id AND a.tanggal = j.tanggal AND a.status = 'hadir'
-      WHERE j.batch_id = @batchId
-      GROUP BY m.id, m.kode, m.nama, m.urutan, j.tanggal
-      ORDER BY j.tanggal, m.urutan;`,
+    query(
+      `SELECT m.id AS materi_id, m.kode AS materi_kode, m.nama AS materi_nama, m.urutan, j.tanggal, COUNT(a.id) AS hadir
+       FROM dbo.training_ojt_jadwal_materi j
+       JOIN dbo.training_ojt_materi m ON m.id = j.materi_id
+       LEFT JOIN dbo.training_ojt_absensi a ON a.materi_id = m.id AND a.tanggal = j.tanggal AND a.status = 'hadir'
+       WHERE j.batch_id = @batchId
+       GROUP BY m.id, m.kode, m.nama, m.urutan, j.tanggal ORDER BY j.tanggal, m.urutan;`,
       (request) => request.input('batchId', sql.Int, batchId)),
   ]);
 
+  const byKey = new Map();
+  for (const row of sessions.recordset) {
+    byKey.set(`${row.peserta_id}|${row.materi_id}|${row.phase}`, row);
+  }
+
+  const cell = (pesertaId, materiId, phase) => {
+    const row = byKey.get(`${pesertaId}|${materiId}|${phase}`);
+    if (!row) return { state: 'belum', score: null, totalScore: null, percentage: null };
+    if (row.status !== 'locked') {
+      return { state: 'mengerjakan', score: null, totalScore: null, percentage: null };
+    }
+    const score = Number(row.score);
+    const totalScore = Number(row.total_score);
+    if (totalScore === 0) {
+      // Locked, but nothing was gradeable: an essay-only bank. Not a zero.
+      return { state: 'tanpa_nilai', score: null, totalScore: null, percentage: null };
+    }
+    return {
+      state: 'selesai',
+      score,
+      totalScore,
+      percentage: Math.round((score / totalScore) * 100),
+    };
+  };
+
   return {
-    submissions: submissions.recordset.map((row) => ({
-      phase: row.phase,
-      kodePeserta: row.kode_peserta,
-      name: row.nama_lengkap,
-      status: row.status,
-      materiId: row.materi_id,
-      materiKode: row.materi_kode,
-      materiNama: row.materi_nama,
-      score: Number(row.score),
-      totalScore: Number(row.total_score),
-      percentage:
-        Number(row.total_score) > 0
-          ? Math.round((Number(row.score) / Number(row.total_score)) * 100)
-          : null,
+    byMateri: jadwal.recordset.map((materi) => ({
+      materiId: materi.materi_id,
+      materiKode: materi.materi_kode,
+      materiNama: materi.materi_nama,
+      tanggal: toIso(materi.tanggal),
+      peserta: peserta.recordset.map((person) => ({
+        kodePeserta: person.kode_peserta,
+        namaLengkap: person.nama_lengkap,
+        pre: cell(person.id, materi.materi_id, 'pre'),
+        post: cell(person.id, materi.materi_id, 'post'),
+      })),
     })),
     attendance: perPeserta.recordset.map((row) => ({
       kodePeserta: row.kode_peserta,
