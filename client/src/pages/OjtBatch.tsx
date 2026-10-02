@@ -263,9 +263,10 @@ const submitPeserta = async () => {
       title: status === 'published' ? 'Terbitkan batch ini?' : 'Tutup batch ini?',
       description:
         status === 'published'
-          ? 'Setelah terbit, peserta bisa mengisi assessment lewat QR untuk batch ini.'
-          : 'Setelah ditutup, batch tidak bisa menerbitkan QR baru.',
+          ? 'Setelah terbit, QR bisa dibuat untuk materi batch ini dan peserta bisa mengisi pre-test, post-test, feedback, dan absensi.'
+          : 'Setelah ditutup, QR baru tidak bisa dibuat dan peserta tidak bisa lagi mengirim jawaban. Data yang sudah masuk tetap tersimpan, dan batch bisa diterbitkan lagi bila salah tutup.',
       confirmLabel: status === 'published' ? 'Terbitkan' : 'Tutup',
+      tone: status === 'closed' ? 'danger' : 'primary',
     });
     if (!ok) return;
     await setOjtBatchStatus(session.accessToken, batch.id, status);
@@ -304,16 +305,56 @@ const submitPeserta = async () => {
             {batch.lokasi ? ` · ${batch.lokasi}` : ''}
           </p>
         </div>
-        {batch.status === 'draft' ? (
-          <Button type="button" onClick={() => changeStatus('published')}>
-            Terbitkan Batch
-          </Button>
-        ) : batch.status === 'published' ? (
-          <Button type="button" variant="secondary" onClick={() => changeStatus('closed')}>
-            Tutup Batch
-          </Button>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-2">
+          {/*
+            Closed can be reopened. Otherwise a mistaken close is permanent, and
+            the only way back would be editing the row by hand in SQL.
+          */}
+          <span
+            className={`border px-2 py-1 text-[10px] font-semibold tracking-[0.1em] uppercase ${
+              batch.status === 'published'
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                : batch.status === 'closed'
+                  ? 'border-slate-300 bg-slate-100 text-slate-700'
+                  : 'border-amber-200 bg-amber-50 text-amber-800'
+            }`}
+          >
+            {batch.status === 'published' ? 'Terbit' : batch.status === 'closed' ? 'Ditutup' : 'Draf'}
+          </span>
+
+          {batch.status === 'draft' && (
+            <Button type="button" onClick={() => changeStatus('published')}>
+              Terbitkan Batch
+            </Button>
+          )}
+          {batch.status === 'published' && (
+            <Button type="button" variant="secondary" onClick={() => changeStatus('closed')}>
+              Tutup Batch
+            </Button>
+          )}
+          {batch.status === 'closed' && (
+            <Button type="button" onClick={() => changeStatus('published')}>
+              Buka Lagi
+            </Button>
+          )}
+        </div>
       </header>
+
+      {/*
+        Stated once here rather than only at the point of failure, because a draft
+        batch refuses QR codes and submissions and there is nothing in the rest of
+        the page that would explain why.
+      */}
+      {batch.status !== 'published' && (
+        <p
+          role="status"
+          className="enter-section mt-5 border-l-2 border-amber-500 bg-amber-50 px-3 py-2.5 text-sm text-amber-900"
+        >
+          {batch.status === 'draft'
+            ? 'Batch masih draf. QR belum bisa dibuat dan peserta belum bisa mengerjakan apa pun. Terbitkan batch untuk membukanya.'
+            : 'Batch sudah ditutup. Peserta tidak bisa lagi mengirim jawaban, dan QR baru tidak bisa dibuat. Buka lagi bila ingin menerima jawaban susulan.'}
+        </p>
+      )}
 
       <section
         className="enter-section mt-6 grid scroll-mt-6 gap-4 sm:grid-cols-2 lg:grid-cols-4"
@@ -567,6 +608,7 @@ const submitPeserta = async () => {
       <OjtMateriAssessment
         token={session.accessToken}
         batchId={batch.id}
+        batchStatus={batch.status}
         entry={assessment.find((item) => item.materiId === openMateri) ?? null}
         onClose={() => setOpenMateri(null)}
       />

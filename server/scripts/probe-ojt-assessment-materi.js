@@ -18,6 +18,24 @@ import { createApp } from '../src/app.js';
 let server;
 let baseUrl;
 
+/*
+  Held at module scope so the failure path can put the batch status back too.
+
+  This probe writes to a real batch: it has to publish it to get past the gate, and
+  closing and reopening are part of what it verifies. An earlier version restored
+  the status only on the success path, so any thrown error left somebody's real
+  batch in a state they never chose. Restoring in the catch as well is the whole
+  reason these live out here.
+*/
+let restoreBatch = null;
+
+const restoreOriginalStatus = async () => {
+  if (typeof restoreBatch !== 'function') return;
+  const restore = restoreBatch;
+  restoreBatch = null;
+  await restore().catch(() => undefined);
+};
+
 const call = async (path, token, options = {}) => {
   const response = await fetch(`${baseUrl}${path}`, {
     ...options,
@@ -144,6 +162,55 @@ const run = async () => {
   const detail = await call(`/api/ojt/admin/batches/${batchId}`, admin);
   const tanggal = detail.body.tanggalMulai;
   console.log(`batch #${batchId}, window ${detail.body.tanggalMulai} .. ${detail.body.tanggalSelesai}\n`);
+
+  const setStatus = async (status) => {
+    const result = await call(`/api/ojt/admin/batches/${batchId}/status`, admin, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    });
+    return result;
+  };
+
+  /*
+    Remembered so the probe leaves the batch the way it found it. It has to publish
+    the batch to get any further, and a probe that silently left somebody's real
+    batch published would be its own kind of damage.
+  */
+  const originalStatus = detail.body.status;
+
+  /*
+    Registered as soon as the status is known, not at the end of the happy path,
+    so every exit route restores it.
+  */
+  restoreBatch = () => setStatus(originalStatus);
+
+  console.log('batch status gates everything participants do');
+  const draft = await setStatus('draft');
+  expect('set draft', draft.status, 200);
+
+  const materiDraft = `PROBE-DRAFT-${Date.now()}`;
+  await call(`/api/ojt/admin/batches/${batchId}/jadwal`, admin, {
+    method: 'POST',
+    body: JSON.stringify({ tanggal, namaMateri: materiDraft }),
+  });
+  const afterDraft = await call(`/api/ojt/admin/batches/${batchId}`, admin);
+  const draftMateriId = afterDraft.body.jadwal.find((j) => j.materiNama === materiDraft)?.materiId;
+
+  const qrOnDraft = await call(`/api/ojt/admin/batches/${batchId}/materi/${draftMateriId}/qr`, admin, {
+    method: 'POST',
+    body: JSON.stringify({ purpose: 'attendance' }),
+  });
+  expect('QR refused while draft', qrOnDraft.status, 409);
+  expect('draft code', qrOnDraft.body?.error?.code, 'BATCH_BELUM_TERBIT');
+
+  // Clean the draft probe material up now so it does not linger if a later step fails.
+  await query('DELETE FROM dbo.training_ojt_jadwal_materi WHERE materi_id = @id;', (r) =>
+    r.input('id', draftMateriId),
+  );
+  await query('DELETE FROM dbo.training_ojt_materi WHERE id = @id;', (r) => r.input('id', draftMateriId));
+
+  const reopened = await setStatus('published');
+  expect('set published', reopened.status, 200);
 
   // A second day is needed for two materials, so widen nothing: both go on day one
   // and attendance has to accept both.
@@ -454,7 +521,39 @@ const run = async () => {
     expect('detail names every participant', rowA.peserta.every((row) => Boolean(row.namaLengkap)), true);
   }
 
+  console.log('\nclosing the batch stops collection, and reopening restores it');
+  const closed = await setStatus('closed');
+  expect('set closed', closed.status, 200);
+
+  const qrWhenClosed = await call(`/api/ojt/admin/batches/${batchId}/materi/${idA}/qr`, admin, {
+    method: 'POST',
+    body: JSON.stringify({ purpose: 'attendance' }),
+  });
+  expect('QR refused while closed', qrWhenClosed.status, 409);
+  expect('closed code', qrWhenClosed.body?.error?.code, 'BATCH_DITUTUP');
+
+  /*
+    The reason closing has to reach the participant routes and not only the QR
+    route: the code in somebody's hand was issued while the batch was open, so
+    refusing only new codes would let the old one straight through.
+  */
+  const openWhenClosed = await call(`/api/ojt/access/${qrPreAgain.body.token}`, {});
+  expect('participant page refused when closed', openWhenClosed.status, 409);
+  expect('participant code', openWhenClosed.body?.error?.code, 'BATCH_DITUTUP');
+
+  const submitWhenClosed = await call(`/api/ojt/access/${qrPreAgain.body.token}/open`, {}, {
+    method: 'POST',
+    body: JSON.stringify({ kodePeserta: peserta.kodePeserta }),
+  });
+  expect('open refused when closed', submitWhenClosed.status, 409);
+
+  const backOpen = await setStatus('published');
+  expect('reopen', backOpen.status, 200);
+  const afterReopen = await call(`/api/ojt/access/${qrPreAgain.body.token}`, {});
+  expect('participant page works again after reopening', afterReopen.status, 200);
+
   console.log('\ncleanup');
+  await restoreOriginalStatus();
   await purgeProbes();
 
   const leftovers = await query(
@@ -473,6 +572,7 @@ const run = async () => {
 
 run().catch(async (error) => {
   console.error('\nFAILED:', error.message);
+  await restoreOriginalStatus();
   server?.close();
   await closeDatabase().catch(() => undefined);
   process.exit(1);

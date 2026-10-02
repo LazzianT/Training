@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import type { OjtAssessmentSummary } from '@training/contracts';
+import type { OjtAssessmentSummary, OjtBatchStatus } from '@training/contracts';
 import { ApiRequestError } from '../api/auth.js';
 import { createOjtMateriQr } from '../api/ojt.js';
 import { Button, EmptyState } from './ui/index.js';
@@ -18,6 +18,8 @@ const PURPOSES = [
 type Props = {
   token: string;
   batchId: number;
+  /** Draft and closed batches refuse new codes, so the buttons are disabled. */
+  batchStatus: OjtBatchStatus;
   /** Null when no material is open, which closes the dialog. */
   entry: OjtAssessmentSummary | null;
   onClose: () => void;
@@ -32,10 +34,12 @@ type Props = {
  * disabled until the bank is published and non-empty, and the way to fix that is
  * a link away.
  */
-export const OjtMateriAssessment = ({ token, batchId, entry, onClose }: Props) => {
+export const OjtMateriAssessment = ({ token, batchId, batchStatus, entry, onClose }: Props) => {
   const { push } = useToast();
   const [busy, setBusy] = useState<string | null>(null);
   const [qr, setQr] = useState<{ purpose: string; url: string } | null>(null);
+
+  const batchOpen = batchStatus === 'published';
 
   const issue = async (purpose: (typeof PURPOSES)[number]['value']) => {
     if (!entry) return;
@@ -77,6 +81,18 @@ export const OjtMateriAssessment = ({ token, batchId, entry, onClose }: Props) =
       }
     >
       <div className="space-y-5 p-5">
+        {/*
+          A batch that is not open refuses every code, so the reason is given once
+          at the top rather than as an error on the first button pressed.
+        */}
+        {!batchOpen && (
+          <p className="border-l-2 border-amber-500 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            {batchStatus === 'draft'
+              ? 'Batch masih draf, jadi QR belum bisa dibuat. Terbitkan batch lebih dulu.'
+              : 'Batch sudah ditutup, jadi QR baru tidak bisa dibuat. Buka lagi batch bila perlu.'}
+          </p>
+        )}
+
         {/*
           Readiness first. Everything below depends on it: publishing locks the
           question count, and a code opened against an empty bank tells the
@@ -127,14 +143,20 @@ export const OjtMateriAssessment = ({ token, batchId, entry, onClose }: Props) =
                 <button
                   key={purpose.value}
                   type="button"
-                  disabled={blocked || busy !== null}
+                  disabled={blocked || !batchOpen || busy !== null}
                   onClick={() => issue(purpose.value)}
-                  title={blocked ? 'Soal belum dipublikasikan' : undefined}
+                  title={
+                    !batchOpen
+                      ? 'Batch belum dibuka'
+                      : blocked
+                        ? 'Soal belum dipublikasikan'
+                        : undefined
+                  }
                   className="flex items-center justify-between gap-2 border border-slate-300 px-3 py-2.5 text-left text-sm font-semibold text-slate-900 outline-none transition duration-150 hover:border-slate-900 hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400 disabled:hover:border-slate-200 disabled:hover:bg-transparent focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
                 >
                   <span>QR {purpose.label}</span>
                   <span className="text-xs font-normal text-slate-500">
-                    {blocked ? 'belum siap' : busy === purpose.value ? '...' : 'buat'}
+                    {!batchOpen ? 'belum dibuka' : blocked ? 'belum siap' : busy === purpose.value ? '...' : 'buat'}
                   </span>
                 </button>
               );

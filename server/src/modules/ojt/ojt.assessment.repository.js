@@ -288,7 +288,7 @@ export const createQr = async (batchId, materiId, purpose) => {
 export const resolveQr = async (token) => {
   const result = await query(
     `SELECT TOP 1 q.id, q.batch_id, q.materi_id, q.purpose, q.expires_at,
-            b.judul, b.tanggal_mulai, b.tanggal_selesai, b.lokasi,
+            b.judul, b.status AS batch_status, b.tanggal_mulai, b.tanggal_selesai, b.lokasi,
             m.kode AS materi_kode, m.nama AS materi_nama,
             j.tanggal AS materi_tanggal
      FROM dbo.training_ojt_qr_access q
@@ -307,6 +307,25 @@ export const resolveQr = async (token) => {
     materi_nama: row.materi_nama,
     materi_tanggal: row.materi_tanggal ? toIso(row.materi_tanggal) : null,
   };
+};
+
+/**
+ * Whether a batch is currently accepting anything from participants.
+ *
+ * A draft batch is still being assembled, so a code that exists against it is
+ * either stale or was issued before somebody reverted it. A closed batch has
+ * finished collecting: the point of closing is to stop late submissions, and if
+ * that only applied to new codes then the one already in a participant's history
+ * would still let them in.
+ *
+ * Returned as a code rather than a boolean so the caller can explain which of the
+ * two it is. "QR tidak berlaku" for a closed batch would send people to HR for a
+ * new code that would also be refused.
+ */
+export const batchAccessState = (access) => {
+  if (access.batch_status === 'draft') return 'DRAFT';
+  if (access.batch_status === 'closed') return 'CLOSED';
+  return 'OPEN';
 };
 
 /**

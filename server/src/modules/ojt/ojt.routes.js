@@ -24,6 +24,7 @@ import {
 } from './ojt.repository.js';
 import {
   addQuestion,
+  batchAccessState,
   createQr,
   deleteQuestion,
   ensureTestSet,
@@ -667,6 +668,23 @@ ojtRouter.post('/batches/:id/materi/:materiId/qr', async (request, response, nex
   }
   try {
     await withBatch(response, parsedId.data, async (batch) => {
+      /*
+        A code for a batch nobody has opened yet is a code that cannot be
+        completed, and issuing it anyway is how a printed sheet ends up stuck to
+        a wall before the material is ready.
+      */
+      if (batch.status !== 'published') {
+        const closed = batch.status === 'closed';
+        fail(
+          response,
+          409,
+          closed ? 'BATCH_DITUTUP' : 'BATCH_BELUM_TERBIT',
+          closed
+            ? 'Batch sudah ditutup. Buka lagi dulu sebelum membuat QR.'
+            : 'Batch belum diterbitkan. Terbitkan batch dulu sebelum membuat QR.',
+        );
+        return;
+      }
       const scheduled = batch.jadwal.some((item) => item.materiId === materiId.data);
       if (!scheduled) {
         fail(response, 400, 'MATERI_TIDAK_DIJADWALKAN', 'Materi ini belum ada di jadwal batch.');
@@ -699,6 +717,31 @@ ojtRouter.post('/batches/:id/materi/:materiId/qr', async (request, response, nex
 */
 export const ojtPublicRouter = Router();
 
+const publicError = (response, status, code, message) =>
+  response.status(status).json({ error: { code, message } });
+
+/*
+  Refuses a batch that is not open to participants.
+ *
+  Checked on every participant route, not only where the code is scanned. A page
+  already open in somebody's browser keeps its token, so a batch closed while they
+  were filling the form would otherwise still take the submission.
+ *
+  Draft and closed are told apart in the message. Both are refusals, but one means
+  "come back later" and the other means "this is over", and a participant who
+  cannot tell them apart asks HR for a new code that will also be refused.
+*/
+const batchGate = (response, access) => {
+  const state = batchAccessState(access);
+  if (state === 'OPEN') return true;
+  if (state === 'DRAFT') {
+    publicError(response, 409, 'BATCH_BELUM_TERBIT', 'Batch ini belum dibuka. Hubungi HR.');
+    return false;
+  }
+  publicError(response, 409, 'BATCH_DITUTUP', 'Batch ini sudah ditutup. Jawaban tidak bisa dikirim lagi.');
+  return false;
+};
+
 ojtPublicRouter.get('/access/:token', async (request, response, next) => {
   try {
     const access = await resolveQr(request.params.token);
@@ -706,6 +749,7 @@ ojtPublicRouter.get('/access/:token', async (request, response, next) => {
       response.status(404).json({ error: { code: 'QR_EXPIRED', message: 'QR tidak berlaku.' } });
       return;
     }
+    if (!batchGate(response, access)) return;
     response.status(200).json({
       batchId: access.batch_id,
       purpose: access.purpose,
@@ -733,9 +777,6 @@ ojtPublicRouter.get('/access/:token', async (request, response, next) => {
   }
 });
 
-const publicError = (response, status, code, message) =>
-  response.status(status).json({ error: { code, message } });
-
 ojtPublicRouter.post('/access/:token/open', async (request, response, next) => {
   try {
     const body = z.object({ kodePeserta: z.string().trim().min(1).max(50) }).safeParse(request.body ?? {});
@@ -748,6 +789,7 @@ ojtPublicRouter.post('/access/:token/open', async (request, response, next) => {
       publicError(response, 404, 'QR_EXPIRED', 'QR tidak berlaku.');
       return;
     }
+    if (!batchGate(response, access)) return;
     const peserta = await findPeserta(access.batch_id, body.data.kodePeserta);
     if (!peserta) {
       publicError(response, 404, 'PESERTA_NOT_FOUND', 'Kode peserta tidak terdaftar pada batch ini.');
@@ -852,6 +894,7 @@ ojtPublicRouter.post('/access/:token/submit', async (request, response, next) =>
       publicError(response, 404, 'QR_EXPIRED', 'QR tidak berlaku.');
       return;
     }
+    if (!batchGate(response, access)) return;
     const peserta = await findPeserta(access.batch_id, body.data.kodePeserta);
     if (!peserta) {
       publicError(response, 404, 'PESERTA_NOT_FOUND', 'Kode peserta tidak terdaftar pada batch ini.');
@@ -906,6 +949,7 @@ ojtPublicRouter.post('/access/:token/feedback', async (request, response, next) 
       publicError(response, 404, 'QR_EXPIRED', 'QR tidak berlaku.');
       return;
     }
+    if (!batchGate(response, access)) return;
     const peserta = await findPeserta(access.batch_id, body.data.kodePeserta);
     if (!peserta) {
       publicError(response, 404, 'PESERTA_NOT_FOUND', 'Kode peserta tidak terdaftar pada batch ini.');
