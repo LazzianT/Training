@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { authenticate } from '../../middleware/authenticate.js';
+import { publicAppUrl } from '../../config.js';
 import {
   addPeserta,
   createBatch,
@@ -671,7 +672,17 @@ ojtRouter.post('/batches/:id/materi/:materiId/qr', async (request, response, nex
         return;
       }
       const token = await createQr(parsedId.data, materiId.data, purpose.data);
-      response.status(201).json({ token, url: `/ojt/access/${token}`, materiId: materiId.data, purpose: purpose.data });
+      response.status(201).json({
+        token,
+        /*
+          Absolute, because this string is what gets encoded into the QR image and
+          what the copy button puts on the clipboard. A relative path scans into
+          a dead address.
+        */
+        url: `${publicAppUrl()}/ojt/access/${token}`,
+        materiId: materiId.data,
+        purpose: purpose.data,
+      });
     });
   } catch (error) {
     next(error);

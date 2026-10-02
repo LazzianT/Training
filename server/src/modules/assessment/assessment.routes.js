@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import sql from 'mssql';
 import { authenticate } from '../../middleware/authenticate.js';
+import { publicAppUrl } from '../../config.js';
 import { query } from '../../db/pool.js';
 import { addEssayQuestion, addMultipleChoiceQuestion, createQrAccess, createTestSet, deleteEmptyTestSet, deleteQuestion, getAssessmentQrReadiness, getAssessmentResults, getPublicAssessment, listQuestions, listQrAccess, listTestSets, publishTestSet, resolveQrAccess, submitAttendance, submitFeedback, submitPublicAssessment } from './assessment.repository.js';
 import { getEvent } from '../event/event.repository.js';
@@ -114,7 +115,9 @@ assessmentRouter.post('/events/:id/qr', async (request, response, next) => {
       }
     }
     const qr = await createQrAccess(parsed.data, parsedPurpose.data, response.locals.actor.nip);
-    response.status(201).json({ ...qr, url: `/assessment/access/${qr.token}` });
+    // Absolute: this string is encoded into the QR image, and a relative path
+    // scans into a dead address.
+    response.status(201).json({ ...qr, url: `${publicAppUrl()}/assessment/access/${qr.token}` });
   } catch (error) {
     if (error?.number === 547 || error?.number === 2627 || error?.number === 2601) {
       return response.status(409).json({ error: { code: 'QR_SCHEMA_NOT_READY', message: 'Struktur QR belum siap. Restart server untuk menjalankan migrasi assessment.' } });

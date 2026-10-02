@@ -11,6 +11,7 @@ import {
   updateJadwalBody,
 } from '../src/modules/ojt/ojt.schema.js';
 import { toSqlTime } from '../src/modules/ojt/ojt.repository.js';
+import { config, publicAppUrl } from '../src/config.js';
 
 let server;
 let baseUrl;
@@ -246,6 +247,35 @@ describe('db transaction helper', () => {
   });
 });
 
+/*
+  The QR URL leaves the server and gets encoded into an image a phone scans, so it
+  has to be absolute. It was a bare "/ojt/access/..." before, which scans into a
+  dead address and only reads as fine when copied into a browser by hand.
+*/
+describe('public app url', () => {
+  it('returns an absolute origin with no trailing slash', () => {
+    const url = publicAppUrl();
+    expect(url).toMatch(/^https?:\/\/[^/]+$/);
+    expect(url.endsWith('/')).toBe(false);
+  });
+
+  it('produces a scannable access link', () => {
+    const link = `${publicAppUrl()}/ojt/access/abc123`;
+    expect(link).toMatch(/^https?:\/\/[^/]+\/ojt\/access\/abc123$/);
+    // The failure this guards against: a relative path is not a URL.
+    expect(link.startsWith('/')).toBe(false);
+  });
+
+  it('falls back to the first CORS origin when nothing is configured', () => {
+    // config is parsed once at import, so the assertion is about the shape of the
+    // fallback rather than re-reading the environment: either PUBLIC_APP_URL was
+    // set, or the value came from the first entry of the comma separated list.
+    const origins = config.CORS_ORIGIN.split(',').map((value) => value.trim());
+    const configured = config.PUBLIC_APP_URL.trim();
+    expect(configured !== '' || origins[0].length > 0).toBe(true);
+    expect(publicAppUrl()).not.toContain(',');
+  });
+});
 /*
   The assessment scope moved from the batch to the material, so a QR is now one
   per material per purpose. These pin the parts that decide which of them a

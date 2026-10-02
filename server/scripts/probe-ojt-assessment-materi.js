@@ -230,6 +230,13 @@ const run = async () => {
     body: JSON.stringify({ purpose: 'pre_test' }),
   });
   expect('pre-test QR', qrPre.status, 201);
+  /*
+    The URL is what gets encoded into the QR image and copied to the clipboard, so
+    it has to be absolute. A relative path scans into a dead address, and that was
+    the shape before PUBLIC_APP_URL existed.
+  */
+  expect('QR url is absolute', /^https?:\/\/[^/]+\/ojt\/access\/.+/.test(qrPre.body.url ?? ''), true);
+  console.log(`       ${qrPre.body.url}`);
   const qrPreAgain = await call(`/api/ojt/admin/batches/${batchId}/materi/${idA}/qr`, admin, {
     method: 'POST',
     body: JSON.stringify({ purpose: 'pre_test' }),
