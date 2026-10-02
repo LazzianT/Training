@@ -83,8 +83,24 @@ const run = async () => {
     console.log(`  ${row.table_name.padEnd(28)} index           ${row.name}`);
   }
 
-  const materi = await query('SELECT kode, nama, urutan, aktif FROM dbo.training_ojt_materi ORDER BY urutan;');
-  console.log(`\nmateri rows: ${materi.recordset.length}`);
+  /*
+    Not a migration. The participant code sequence was created by a one off script
+    before 003 grew a guarded block for it, so a database can have every table and
+    still fail the first time somebody adds a participant. Checked explicitly
+    because the symptom ("peserta gagal ditambahkan") gives no hint that a
+    sequence is the missing piece.
+  */
+  const sequence = await query(
+    "SELECT name FROM sys.sequences WHERE name = 'training_ojt_peserta_kode_seq';",
+  );
+  const hasSequence = sequence.recordset.length === 1;
+  console.log(`\nkode peserta sequence: ${hasSequence ? 'present' : 'MISSING'}`);
+  if (!hasSequence) {
+    wrong += 1;
+    console.log("  run scripts/ensure-ojt-sequence.js, or the guarded block in 003_ojt.sql");
+  }
+
+  const materi = await query('SELECT kode, nama, urutan, aktif FROM dbo.training_ojt_materi ORDER BY urutan;');  console.log(`\nmateri rows: ${materi.recordset.length}`);
   for (const row of materi.recordset) {
     console.log(`  ${row.kode.padEnd(5)} urutan=${String(row.urutan).padStart(3)} ${row.aktif ? 'aktif  ' : 'nonaktif'} ${row.nama}`);
   }
@@ -97,8 +113,8 @@ const run = async () => {
 
   console.log(
     wrong === 0
-      ? '\nOK: assessment chain is keyed on materi_id and the batch columns are gone.'
-      : `\nFAILED: ${wrong} column expectations not met.`,
+      ? '\nOK: schema is up to date. Assessment is keyed on materi_id, the batch columns are gone, and the code sequence exists.'
+      : `\nFAILED: ${wrong} problem(s) found above.`,
   );
 
   await closeDatabase();
