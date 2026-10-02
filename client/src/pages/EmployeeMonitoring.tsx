@@ -137,7 +137,7 @@ export const EmployeeMonitoring = () => {
       {rows === null ? (
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {Array.from({ length: 4 }, (_, index) => (
-            <div key={index} className="border border-slate-200 bg-white px-4 py-4">
+            <div key={index} className="surface-card px-4 py-4">
               <div className="h-3 w-24 bg-slate-100" />
               <div className="mt-3 h-8 w-16 bg-slate-100" />
             </div>
@@ -192,7 +192,7 @@ export const EmployeeMonitoring = () => {
           </div>
 
           <div
-            className="enter-section mt-4 overflow-x-auto border border-slate-200 bg-white"
+            className="enter-section mt-4 overflow-x-auto surface-card"
             style={{ '--enter-delay': '160ms' } as React.CSSProperties}
           >
             {rows.length === 0 ? (

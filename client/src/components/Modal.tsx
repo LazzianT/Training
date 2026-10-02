@@ -100,9 +100,9 @@ export const Modal = ({
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={description ? descriptionId : undefined}
-        className={`enter-section w-full ${WIDTH[size]} border border-slate-200 bg-white`}
+        className={`enter-section surface-card w-full ${WIDTH[size]}`}
       >
-        <header className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
+        <header className="surface-card-header flex items-start justify-between gap-4 px-5 py-4">
           <div className="min-w-0">
             <h2 id={titleId} className="text-base font-semibold tracking-[-0.02em] text-slate-900">
               {title}

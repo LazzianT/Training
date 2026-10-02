@@ -219,7 +219,7 @@ export const OjtAccessPage = () => {
             </div>
           ) : (
             <>
-              <div className="enter-section border border-slate-200 bg-white px-4 py-3">
+              <div className="enter-section surface-card px-4 py-3">
                 <p className="text-xs text-slate-500">Beranda sebagai</p>
                 <p className="mt-0.5 text-sm font-semibold text-slate-900">{opened.nama}</p>
               </div>
@@ -243,7 +243,7 @@ export const OjtAccessPage = () => {
                     {questions.map((question, index) => (
                       <div
                         key={question.id}
-                        className="enter-section border border-slate-200 bg-white p-4 sm:p-5"
+                        className="enter-section surface-card p-4 sm:p-5"
                         style={{ '--enter-delay': `${80 + Math.min(index, 6) * 40}ms` } as CSSProperties}
                       >
                         <p className="text-sm font-semibold break-words text-slate-900">
@@ -273,7 +273,7 @@ export const OjtAccessPage = () => {
                   {FEEDBACK_ASPECTS.map((item, index) => (
                     <div
                       key={item.code}
-                      className="enter-section border border-slate-200 bg-white p-4 sm:p-5"
+                      className="enter-section surface-card p-4 sm:p-5"
                       style={{ '--enter-delay': `${80 + index * 30}ms` } as CSSProperties}
                     >
                       <RatingScale

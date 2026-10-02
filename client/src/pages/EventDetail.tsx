@@ -239,21 +239,21 @@ export const EventDetail = () => {
       )}
 
       <section className="enter-section mt-6 grid gap-4 sm:grid-cols-3" style={{ '--enter-delay': '60ms' } as React.CSSProperties}>
-        <div className="border border-slate-200 bg-white px-4 py-4">
+        <div className="surface-card px-4 py-4">
           <p className="text-[11px] font-semibold tracking-[0.08em] text-slate-500 uppercase">Pengisi acara</p>
           <p className="mt-2 text-sm font-semibold text-slate-900">{event.pengisiAcara ?? '-'}</p>
           <p className="mt-0.5 text-xs text-slate-500">
             {event.pengisiAcaraType === 'internal' ? 'Internal' : 'Eksternal'}
           </p>
         </div>
-        <div className="border border-slate-200 bg-white px-4 py-4">
+        <div className="surface-card px-4 py-4">
           <p className="text-[11px] font-semibold tracking-[0.08em] text-slate-500 uppercase">Waktu</p>
           <p className="mt-2 text-sm font-semibold text-slate-900 tabular-nums">
             {event.tgl} · {event.waktuMulai.slice(0, 5)} – {event.waktuSelesai.slice(0, 5)}
           </p>
           <p className="mt-0.5 text-xs text-slate-500">{event.ruangNama ?? 'Ruang belum ditentukan'}</p>
         </div>
-        <div className="border border-slate-200 bg-white px-4 py-4">
+        <div className="surface-card px-4 py-4">
           <p className="text-[11px] font-semibold tracking-[0.08em] text-slate-500 uppercase">Peserta</p>
           <p className="mt-2 text-3xl leading-none font-semibold text-slate-900 tabular-nums">{event.pesertaCount}</p>
         </div>

@@ -177,6 +177,44 @@ body.assessment-access-page {
   background: var(--color-canvas-white);
 }
 
+/*
+  Card surface.
+
+  The page sits on slate-50 and the cards are white, which is a difference of
+  about two percent: readable as a border, not readable as a shape. The shadow is
+  what carries the separation, and it is drawn in two parts on purpose, a tight
+  one for the edge and a wider one for the lift, because a single large blur reads
+  as a smudge at this size.
+
+  Defined once so every card in the app lifts the same way. Six components had
+  their own copy of the same border and background, which is why they drifted into
+  looking flat together.
+*/
+.surface-card {
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 0.06),
+    0 2px 6px rgb(15 23 42 / 0.04);
+}
+
+/*
+  The title band. Tinted rather than separated by a line alone, so the eye finds
+  where a section starts instead of scanning for a hairline.
+*/
+.surface-card-header {
+  border-bottom: 1px solid #e2e8f0;
+  background: #f1f5f9;
+}
+
+/* A shadow is depth, and paper has none. */
+@media print {
+  .surface-card {
+    box-shadow: none;
+  }
+}
+
+
 /* Entrance: the gawang gate opening. 0.5s, no bounce, no fade-up cascade. */
 @keyframes gate-rise {
   from {

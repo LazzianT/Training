@@ -11,7 +11,7 @@ type DistributionProps = {
   chart is never the only place the value appears.
 */
 export const Distribution = ({ buckets, total, caption }: DistributionProps) => (
-  <figure className="border border-slate-200 bg-white">
+  <figure className="surface-card">
     <figcaption className="border-b border-slate-200 px-4 py-3">
       <h2 className="text-sm font-semibold tracking-[-0.01em] text-slate-900">Sebaran Training</h2>
       <p className="mt-0.5 text-xs text-slate-500">{caption}</p>

@@ -30,7 +30,7 @@ export const Login = () => {
 
   return (
     <main data-surface="saas" className="min-h-dvh bg-slate-50 px-4 py-4 text-slate-900 sm:px-8 sm:py-8">
-      <div className="mx-auto flex min-h-[calc(100dvh-2rem)] max-w-6xl flex-col border border-slate-200 bg-white sm:min-h-[calc(100dvh-4rem)]">
+      <div className="mx-auto flex min-h-[calc(100dvh-2rem)] max-w-6xl flex-col surface-card sm:min-h-[calc(100dvh-4rem)]">
         <header className="flex min-h-16 items-center justify-between border-b border-slate-200 px-5 sm:px-8">
           <div className="flex items-center gap-3">
             <img

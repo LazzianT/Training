@@ -227,14 +227,14 @@ export const OjtList = () => {
       {batches === null ? (
         <div className="mt-6 grid gap-4">
           {Array.from({ length: 3 }, (_, index) => (
-            <div key={index} className="border border-slate-200 bg-white p-5">
+            <div key={index} className="surface-card p-5">
               <div className="h-3 w-28 bg-slate-100" />
               <div className="mt-2.5 h-4 w-2/3 bg-slate-100" />
             </div>
           ))}
         </div>
       ) : batches.length === 0 ? (
-        <div className="mt-6 border border-slate-200 bg-white">
+        <div className="mt-6 surface-card">
           <EmptyState
             title="Belum ada batch OJT"
             description="Buat batch pertama untuk mulai mencatat peserta, materi, dan kehadiran karyawan baru."
@@ -246,7 +246,7 @@ export const OjtList = () => {
             <Link
               key={batch.id}
               to={`/ojt/${batch.id}`}
-              className="enter-section block border border-slate-200 bg-white p-5 outline-none transition duration-150 hover:border-slate-400 focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
+              className="enter-section block surface-card p-5 outline-none transition duration-150 hover:border-slate-400 focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
               style={{ '--enter-delay': `${Math.min(index, 6) * 40}ms` } as CSSProperties}
             >
               <div className="flex flex-wrap items-start justify-between gap-3">

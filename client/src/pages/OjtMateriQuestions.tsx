@@ -378,7 +378,7 @@ export const OjtMateriQuestionsPage = () => {
         {drafts.map((draft, index) => (
           <section
             key={index}
-            className="enter-section border border-slate-200 bg-white p-5 sm:p-6"
+            className="enter-section surface-card p-5 sm:p-6"
             style={{ '--enter-delay': `${120 + Math.min(index, 4) * 40}ms` } as CSSProperties}
           >
             <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">

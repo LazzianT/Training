@@ -10,7 +10,7 @@ type SummaryCardProps = {
 };
 
 export const SummaryCard = ({ title, description, rows, children }: SummaryCardProps) => (
-  <div className="border border-slate-200 bg-white">
+  <div className="surface-card">
     <div className="border-b border-slate-200 px-4 py-3">
       <h2 className="text-sm font-semibold tracking-[-0.01em] text-slate-900">{title}</h2>
       {description && <p className="mt-0.5 text-xs text-slate-500">{description}</p>}

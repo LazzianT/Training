@@ -158,7 +158,7 @@ export const EventList = () => {
       )}
 
       {loading ? (
-        <div className="mt-6 border border-slate-200 bg-white">
+        <div className="mt-6 surface-card">
           {Array.from({ length: 5 }, (_, index) => (
             <div key={index} className="border-b border-slate-100 px-4 py-4 last:border-b-0">
               <div className="h-3 w-24 bg-slate-100" />
@@ -167,7 +167,7 @@ export const EventList = () => {
           ))}
         </div>
       ) : events && events.length === 0 ? (
-        <div className="mt-6 border border-slate-200 bg-white">
+        <div className="mt-6 surface-card">
           <EmptyState
             title="Belum ada acara"
             description={`Tidak ada acara pada ${periodLabel}. Buat acara pertama untuk memulai.`}
@@ -259,14 +259,14 @@ export const EventList = () => {
           </div>
 
           {visible.length === 0 ? (
-            <div className="mt-4 border border-slate-200 bg-white">
+            <div className="mt-4 surface-card">
               <EmptyState
                 title="Tidak ada acara yang cocok"
                 description="Ubah kata kunci atau pilih status lain untuk melihat hasil yang lebih banyak."
               />
             </div>
           ) : (
-            <div className="enter-section mt-4 overflow-x-auto border border-slate-200 bg-white" style={{ '--enter-delay': '120ms' } as CSSProperties}>
+            <div className="enter-section mt-4 overflow-x-auto surface-card" style={{ '--enter-delay': '120ms' } as CSSProperties}>
               <table className="w-full min-w-[46rem] border-collapse">
                 <caption className="sr-only">
                   Daftar acara training pada {periodLabel}, {visible.length} baris.

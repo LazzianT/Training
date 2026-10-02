@@ -163,7 +163,7 @@ export const EventForm = () => {
       )}
 
       <form onSubmit={submit} className="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]" noValidate>
-        <div className="grid gap-7 border border-slate-200 bg-white p-5 sm:p-7">
+        <div className="grid gap-7 surface-card p-5 sm:p-7">
           <FormSection title="Identitas Acara">
             <Field id="judul" label="Judul" error={errors.judul}>
               {(field) => (
@@ -369,7 +369,7 @@ export const EventForm = () => {
             </p>
           </SummaryCard>
 
-          <div className="sticky bottom-0 mt-4 flex flex-wrap items-center gap-3 border border-slate-200 bg-white p-3">
+          <div className="sticky bottom-0 mt-4 flex flex-wrap items-center gap-3 surface-card p-3">
             <Button type="submit" disabled={saving} className="flex-1">
               {saving ? 'Menyimpan...' : 'Simpan Acara'}
             </Button>

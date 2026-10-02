@@ -204,7 +204,7 @@ export const MyEvents = () => {
       )}
 
       {events === null ? (
-        <div className="mt-6 border border-slate-200 bg-white">
+        <div className="mt-6 surface-card">
           {Array.from({ length: 3 }, (_, index) => (
             <div key={index} className="border-b border-slate-100 px-5 py-5 last:border-b-0">
               <div className="h-3 w-28 bg-slate-100" />
@@ -213,7 +213,7 @@ export const MyEvents = () => {
           ))}
         </div>
       ) : events.length === 0 ? (
-        <div className="mt-6 border border-slate-200 bg-white">
+        <div className="mt-6 surface-card">
           <EmptyState
             title="Belum ada acara"
             description="Belum ada acara yang ditugaskan kepada Anda sebagai pengisi. Acara akan muncul di sini setelah ditugaskan oleh Human Capital."
@@ -269,7 +269,7 @@ export const MyEvents = () => {
       )}
 
       {events !== null && events.length > 0 && visible.length === 0 && (
-        <div className="mt-4 border border-slate-200 bg-white">
+        <div className="mt-4 surface-card">
           <EmptyState
             title="Tidak ada acara yang cocok"
             description="Ubah kata kunci untuk melihat daftar acara Anda yang lain."
@@ -284,7 +284,7 @@ export const MyEvents = () => {
             return (
               <article
                 key={event.id}
-                className="enter-section border border-slate-200 bg-white"
+                className="enter-section surface-card"
                 style={{ '--enter-delay': `${Math.min(index, 5) * 60}ms` } as React.CSSProperties}
               >
                 <header className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 p-5">

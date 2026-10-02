@@ -264,7 +264,7 @@ const submit = async () => {
                       */
                       <div
                         key={question.id}
-                        className="enter-section border border-slate-200 bg-white p-4 sm:p-5"
+                        className="enter-section surface-card p-4 sm:p-5"
                         style={{ '--enter-delay': `${80 + Math.min(index, 6) * 40}ms` } as CSSProperties}
                       >
                         <p className="text-sm font-semibold break-words text-slate-900">
@@ -294,7 +294,7 @@ const submit = async () => {
                   {FEEDBACK_ASPECTS.map((item, index) => (
                     <div
                       key={item.code}
-                      className="enter-section border border-slate-200 bg-white p-4 sm:p-5"
+                      className="enter-section surface-card p-4 sm:p-5"
                       style={{ '--enter-delay': `${80 + index * 40}ms` } as CSSProperties}
                     >
                       <RatingScale

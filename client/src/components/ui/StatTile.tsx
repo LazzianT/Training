@@ -6,7 +6,7 @@ type StatTileProps = {
 };
 
 export const StatTile = ({ label, value, unit, note }: StatTileProps) => (
-  <div className="border border-slate-200 bg-white px-4 py-4">
+  <div className="surface-card px-4 py-4">
     <p className="text-[11px] font-semibold tracking-[0.08em] text-slate-500 uppercase">{label}</p>
     <p className="mt-2 text-3xl leading-none font-semibold text-slate-900 tabular-nums">
       {value}
