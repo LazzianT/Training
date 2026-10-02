@@ -261,6 +261,29 @@ const run = async () => {
   expect('access names the material', access.body.materiNama, materiA);
   expect('access carries the date', access.body.materiTanggal, tanggal);
 
+  /*
+    The name picker needs the batch roster, so it is in the payload. It is the one
+    list a QR holder can read without an account, which makes what it does *not*
+    contain as important as what it does.
+  */
+  const roster = access.body.peserta;
+  expect('roster is an array', Array.isArray(roster), true);
+  expect('roster is not empty', roster.length > 0, true);
+  const rosterKeys = [...new Set(roster.flatMap((row) => Object.keys(row)))].sort();
+  expect('roster exposes only name and code', rosterKeys.join(','), 'kodePeserta,namaLengkap');
+  expect(
+    'roster carries no department or position',
+    roster.some((row) => 'departemen' in row || 'jabatan' in row || 'tanggalMasuk' in row),
+    false,
+  );
+  const rosterIds = new Set(roster.map((row) => row.kodePeserta));
+  const batchIds = new Set(detail.body.peserta.map((row) => row.kodePeserta));
+  expect(
+    'roster is scoped to this batch',
+    [...rosterIds].every((id) => batchIds.has(id)) && rosterIds.size === batchIds.size,
+    true,
+  );
+
   const peserta = detail.body.peserta[0];
   if (!peserta) {
     console.log('\nno participant in this batch, skipping the participant half');
@@ -272,6 +295,15 @@ const run = async () => {
     expect('open pre-test', opened.status, 200);
     expect('questions returned', Array.isArray(opened.body.questions) && opened.body.questions.length, 1);
     expect('phase is pre', opened.body.phase, 'pre');
+
+    /*
+      The picker hands back a code, and the code is still what the server matches
+      on. Selecting a name is a way to get the code, not a replacement for it, so
+      the identity guarantee is unchanged.
+    */
+    const pickedFromRoster = roster.find((row) => row.kodePeserta === peserta.kodePeserta);
+    expect('selected participant is in the roster', Boolean(pickedFromRoster), true);
+    expect('roster name matches the batch', pickedFromRoster?.namaLengkap, peserta.namaLengkap);
 
     const submitted = await call(`/api/ojt/access/${qrPreAgain.body.token}/submit`, {}, {
       method: 'POST',

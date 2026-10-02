@@ -34,6 +34,7 @@ import {
   getOrCreateSession,
   getResults,
   getSession,
+  listBatchPeserta,
   listQuestions,
   loadAssessment,
   publishTestSet,
@@ -718,6 +719,11 @@ ojtPublicRouter.get('/access/:token', async (request, response, next) => {
       materiKode: access.materi_kode,
       materiNama: access.materi_nama,
       materiTanggal: access.materi_tanggal,
+      /*
+        Sent with the payload rather than fetched separately: the picker needs it
+        the moment the page loads, and it is name and code only.
+      */
+      peserta: await listBatchPeserta(access.batch_id),
       lokasi: access.lokasi ?? null,
       tanggalMulai: access.tanggal_mulai instanceof Date ? access.tanggal_mulai.toISOString().slice(0, 10) : String(access.tanggal_mulai).slice(0, 10),
       tanggalSelesai: access.tanggal_selesai instanceof Date ? access.tanggal_selesai.toISOString().slice(0, 10) : String(access.tanggal_selesai).slice(0, 10),

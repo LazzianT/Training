@@ -415,6 +415,11 @@ export type OjtAccess = {
   materiNama: string;
   /** The day the material runs, or null when it is not on the schedule. */
   materiTanggal: string | null;
+  /**
+   * Who is in this batch, so the form can offer a name instead of demanding a
+   * code. Name and code only: this list is readable by anyone holding the QR.
+   */
+  peserta: { kodePeserta: string; namaLengkap: string }[];
   lokasi: string | null;
   tanggalMulai: string;
   tanggalSelesai: string;

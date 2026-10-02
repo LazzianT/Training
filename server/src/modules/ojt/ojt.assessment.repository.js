@@ -310,6 +310,31 @@ export const resolveQr = async (token) => {
 };
 
 /**
+ * Participants of the batch, for the name picker on the participant form.
+ *
+ * Only the name and the code. No department, no position, no assessment history:
+ * this is the one list a QR holder can read without an account, so it carries the
+ * minimum that makes picking a name possible.
+ *
+ * The picker exists because a code is something a participant has to have kept.
+ * HR hands out a code once, at induction, and by the day of the material it has
+ * been lost, which turns a two minute form into a trip to the HR desk.
+ */
+export const listBatchPeserta = async (batchId) => {
+  const result = await query(
+    `SELECT kode_peserta, nama_lengkap
+     FROM dbo.training_ojt_peserta
+     WHERE batch_id = @batchId AND aktif = 1
+     ORDER BY nama_lengkap, kode_peserta;`,
+    (request) => request.input('batchId', sql.Int, batchId),
+  );
+  return result.recordset.map((row) => ({
+    kodePeserta: row.kode_peserta,
+    namaLengkap: row.nama_lengkap,
+  }));
+};
+
+/**
  * The participant identifies themselves with the HR code, matched inside the
  * batch the QR belongs to. Trim-only, no numeric coercion: OJT codes are not
  * numbers and a numeric branch here would silently equate two people.

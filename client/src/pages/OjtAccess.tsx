@@ -6,6 +6,7 @@ import { openOjtAccess, fetchOjtAccess, submitOjtAnswers, submitOjtFeedback } fr
 import { ChoiceGroup } from '../components/ChoiceGroup.js';
 import { ProgressBar, RatingScale } from '../components/RatingScale.js';
 import { SignaturePad } from '../components/SignaturePad.js';
+import { OjtPesertaPicker } from '../components/OjtPesertaPicker.js';
 import { useConfirm } from '../components/ConfirmDialog.js';
 import { Button, Field, textareaClass } from '../components/ui/index.js';
 import { shortDate } from '../lib/date.js';
@@ -190,21 +191,28 @@ export const OjtAccessPage = () => {
           ) : !opened ? (
             <div className="enter-section grid gap-5">
               <Field
-                id="ojt-kode"
-                label="Kode peserta"
-                hint="Kode yang diberikan HR, contoh OJT-001."
+                id="ojt-peserta"
+                label="Nama Anda"
+                hint="Ketik nama Anda lalu pilih dari daftar peserta batch ini."
               >
                 {(field) => (
-                  <input
+                  <OjtPesertaPicker
+                    id="ojt-peserta"
+                    peserta={access.peserta}
                     value={kode}
-                    onChange={(change) => setKode(change.target.value)}
-                    placeholder="Contoh OJT-001"
-                    autoComplete="off"
-                    {...field}
+                    onSelect={(kodePeserta) => setKode(kodePeserta)}
+                    onClear={() => setKode('')}
+                    disabled={busy}
                     className={field.className}
+                    aria-describedby={field['aria-describedby']}
                   />
                 )}
               </Field>
+              {access.peserta.length === 0 && (
+                <p className="border-l-2 border-amber-500 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                  Belum ada peserta terdaftar di batch ini. Hubungi HR.
+                </p>
+              )}
               <Button type="button" onClick={open} disabled={!kode.trim() || busy}>
                 {busy ? 'Memuat...' : 'Lanjutkan'}
               </Button>
