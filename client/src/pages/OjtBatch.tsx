@@ -20,7 +20,16 @@ import { useConfirm } from '../components/ConfirmDialog.js';
 import { Modal } from '../components/Modal.js';
 import { useAuth } from '../auth/AuthContext.js';
 import type { OjtResults } from '@training/contracts';
-import { shortDate } from '../lib/date.js';
+import { shortDate, timeRange } from '../lib/date.js';
+
+const WEEKDAYS = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+
+/** Weekday name for an ISO date, read as a local date so it cannot slip a day. */
+const weekdayLabel = (iso: string) => {
+  const [year, month, day] = iso.split('-').map(Number);
+  if (!year || !month || !day) return '';
+  return WEEKDAYS[new Date(year, month - 1, day).getDay()];
+};
 
 const QR_PURPOSES = [
   { value: 'pre_test', label: 'Pre-test' },
@@ -85,6 +94,23 @@ export const OjtBatchPage = () => {
     () => (batch ? workingDays(batch.tanggalMulai, batch.tanggalSelesai) : []),
     [batch],
   );
+
+  /*
+    The API already returns the schedule in date order, but it orders by jam_mulai
+    too, and a session with no start time sorts first regardless of where it sits
+    in the day. Sorting here on date then time puts a morning session before an
+    afternoon one on the same day, with unscheduled-times sessions after both.
+  */
+  const jadwalSorted = useMemo(() => {
+    const list = [...(batch?.jadwal ?? [])];
+    const timeRank = (value: string | null) => (value ? value.slice(0, 5) : '99:99');
+    return list.sort(
+      (a, b) =>
+        a.tanggal.localeCompare(b.tanggal) ||
+        timeRank(a.jamMulai).localeCompare(timeRank(b.jamMulai)) ||
+        a.materiNama.localeCompare(b.materiNama),
+    );
+  }, [batch]);
 
   const stats = useMemo(() => {
     if (!batch) return { peserta: 0, materiRate: 0, hadirRate: 0, postScore: null as number | null };
@@ -373,6 +399,105 @@ const submitPeserta = async () => {
         onUpdate={editJadwal}
         onDelete={dropJadwal}
       />
+
+      {/*
+        The calendar is for planning and its cells only have room for a name. This
+        is the same schedule read back as a list, where the presenter, their
+        department and the full time range actually fit.
+      */}
+      <Panel
+        title="Materi Batch Ini"
+        description="Materi yang sudah dijadwalkan pada batch ini, urut dari tanggal."
+        className="enter-section mt-8"
+        action={
+          jadwalSorted.length > 0 ? (
+            <span className="text-xs font-semibold text-slate-500 tabular-nums">
+              {jadwalSorted.length} materi
+            </span>
+          ) : undefined
+        }
+      >
+        {jadwalSorted.length === 0 ? (
+          <EmptyState
+            title="Belum ada materi dijadwalkan"
+            description="Buka kalender di atas dan klik tanggal untuk mengisi materi beserta pengisinya."
+          />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[44rem]">
+              <thead>
+                <tr className="border-b border-slate-200">
+                  <th scope="col" className="px-4 py-2.5 text-left text-[11px] font-semibold tracking-[0.1em] text-slate-500 uppercase">
+                    Tanggal
+                  </th>
+                  <th scope="col" className="px-4 py-2.5 text-left text-[11px] font-semibold tracking-[0.1em] text-slate-500 uppercase">
+                    Materi
+                  </th>
+                  <th scope="col" className="px-4 py-2.5 text-left text-[11px] font-semibold tracking-[0.1em] text-slate-500 uppercase">
+                    Jam
+                  </th>
+                  <th scope="col" className="px-4 py-2.5 text-left text-[11px] font-semibold tracking-[0.1em] text-slate-500 uppercase">
+                    Pengisi
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {jadwalSorted.map((item) => (
+                  <tr
+                    key={item.id}
+                    className="border-b border-slate-100 transition duration-150 last:border-b-0 hover:bg-slate-50"
+                  >
+                    <th scope="row" className="px-4 py-3 text-left align-top">
+                      <span className="block text-sm font-medium whitespace-nowrap text-slate-900">
+                        {shortDate(item.tanggal)}
+                      </span>
+                      <span className="mt-0.5 block text-xs text-slate-500 capitalize">
+                        {weekdayLabel(item.tanggal)}
+                      </span>
+                    </th>
+                    <td className="px-4 py-3 align-top">
+                      <span className="block text-sm font-medium text-slate-900">{item.materiNama}</span>
+                      <span className="mt-0.5 block text-xs text-slate-500 tabular-nums">{item.materiKode}</span>
+                      {item.catatan && (
+                        <span className="mt-1 block text-xs text-slate-500">{item.catatan}</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 align-top text-sm whitespace-nowrap text-slate-700 tabular-nums">
+                      {item.jamMulai && item.jamSelesai
+                        ? timeRange(item.jamMulai, item.jamSelesai)
+                        : (item.jamMulai ?? item.jamSelesai) ?? 'Sehari penuh'}
+                    </td>
+                    <td className="px-4 py-3 align-top">
+                      {item.pengisiNama ? (
+                        <>
+                          <span className="block text-sm text-slate-900">{item.pengisiNama}</span>
+                          <span className="mt-0.5 block text-xs text-slate-500 tabular-nums">
+                            {[item.pengisiNip, item.pengisiDepartemen].filter(Boolean).join(' · ')}
+                          </span>
+                        </>
+                      ) : item.pengisiNip ? (
+                        /*
+                          The NIP is stored but no longer resolves in HRIS, which
+                          happens when someone leaves. Shown rather than blank so it
+                          is obvious the slot needs filling in, not just quiet.
+                        */
+                        <span className="block text-sm text-slate-500">
+                          {item.pengisiNip}
+                          <span className="mt-0.5 block text-xs text-amber-700">
+                            Tidak ada di HRIS lagi
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="text-sm text-slate-400">Belum ditentukan</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
 
       <Panel title="Assessment" description="QR memakai batch ini untuk pre-test, post-test, feedback, dan absensi." className="enter-section mt-8">
         <div className="p-5">
