@@ -14,6 +14,7 @@ import { Login } from './pages/Login.js';
 import { EmployeeMonitoring } from './pages/EmployeeMonitoring.js';
 import { OjtList } from './pages/OjtList.js';
 import { OjtMateriMasterPage } from './pages/OjtMateriMaster.js';
+import { OjtMateriQuestionsPage } from './pages/OjtMateriQuestions.js';
 import { OjtBatchPage } from './pages/OjtBatch.js';
 import { OjtAccessPage } from './pages/OjtAccess.js';
 
@@ -40,6 +41,8 @@ export const App = () => (
     <Route path="/employee-monitoring" element={protectedPage(<EmployeeMonitoring />)} />
     <Route path="/ojt" element={protectedPage(<OjtList />)} />
       <Route path="/ojt/materi" element={protectedPage(<OjtMateriMasterPage />)} />
+      {/* Literal before the parameter, so this is not read as a batch id. */}
+      <Route path="/ojt/materi/:materiId/soal" element={protectedPage(<OjtMateriQuestionsPage />)} />
       <Route path="/ojt/:batchId" element={protectedPage(<OjtBatchPage />)} />
     <Route path="/my-events" element={protectedPage(<MyEvents />)} />
     <Route path="/my-events/:eventId/questions" element={protectedPage(<QuestionEditor />)} />

@@ -3,10 +3,16 @@ import sql from 'mssql';
 import { query } from '../../db/pool.js';
 
 /*
-  The OJT assessment chain, keyed on batch_id and peserta_id instead of
+  The OJT assessment chain, keyed on materi_id and peserta_id instead of
   event_id and participant_nip. This is a deliberate duplicate of the training
   chain: an OJT participant has no NIP, and mixing the two would let OJT data
   surface in training reports.
+
+  Scope moved from the batch to the material. Four materials in one week used to
+  share one pre-test, one feedback form and one attendance mark per day, so none
+  of them measured any of the four. What stays on the batch is only what is
+  genuinely per batch: the participants, and the QR, since the QR is what
+  identifies which participant is answering.
 */
 
 const hash = (value) => createHash('sha256').update(value).digest('hex');
@@ -17,35 +23,114 @@ const toIso = (value) =>
 
 /* ------------------------------------------------------------------ test sets */
 
-export const listTestSets = async (batchId) => {
-  const result = await query(
-    `SELECT id, test_type, test_date, question_count, status, dipublikasikan_pada
-     FROM dbo.training_ojt_test_set WHERE batch_id = @batchId ORDER BY test_type, id;`,
-    (request) => request.input('batchId', sql.Int, batchId),
+/**
+ * One question bank per material, shared by every batch.
+ *
+ * The material, not the batch, owns the questions: the same Safety Induction
+ * test is written once and reused, exactly as the material catalog itself is.
+ * The day it runs and who presents it live on the schedule.
+ */
+export const ensureTestSet = async (materiId) => {
+  const existing = await query(
+    `SELECT id, status, question_count, dipublikasikan_pada
+     FROM dbo.training_ojt_test_set WHERE materi_id = @materiId;`,
+    (request) => request.input('materiId', sql.Int, materiId),
   );
-  return result.recordset.map((row) => ({
-    id: row.id,
-    type: row.test_type,
-    date: toIso(row.test_date),
-    questionCount: Number(row.question_count),
-    status: row.status,
-    publishedAt: row.dipublikasikan_pada ? new Date(row.dipublikasikan_pada).toISOString() : null,
-  }));
+  if (existing.recordset[0]) {
+    return { ...mapTestSet(existing.recordset[0]), created: false };
+  }
+
+  const created = await query(
+    `INSERT INTO dbo.training_ojt_test_set (materi_id)
+     OUTPUT INSERTED.id
+     VALUES (@materiId);`,
+    (request) => request.input('materiId', sql.Int, materiId),
+  );
+  return {
+    id: created.recordset[0].id,
+    materiId,
+    status: 'draft',
+    questionCount: 0,
+    publishedAt: null,
+    created: true,
+  };
 };
 
-export const createTestSet = async (batchId, type, trainerNip, testDate) => {
+const mapTestSet = (row) => ({
+  id: row.id,
+  materiId: row.materi_id,
+  status: row.status,
+  questionCount: Number(row.question_count),
+  publishedAt: row.dipublikasikan_pada ? new Date(row.dipublikasikan_pada).toISOString() : null,
+});
+
+export const findTestSet = async (materiId) => {
   const result = await query(
-    `INSERT INTO dbo.training_ojt_test_set (batch_id, test_type, trainer_nip, test_date)
-     OUTPUT INSERTED.id
-     VALUES (@batchId, @type, @trainerNip, @testDate);`,
-    (request) =>
-      request
-        .input('batchId', sql.Int, batchId)
-        .input('type', sql.VarChar(20), type)
-        .input('trainerNip', sql.NVarChar(50), trainerNip ?? null)
-        .input('testDate', sql.Date, toDate(testDate)),
+    `SELECT id, materi_id, status, question_count, dipublikasikan_pada
+     FROM dbo.training_ojt_test_set WHERE materi_id = @materiId;`,
+    (request) => request.input('materiId', sql.Int, materiId),
   );
-  return Number(result.recordset[0].id);
+  return result.recordset[0] ? mapTestSet(result.recordset[0]) : null;
+};
+
+/** Resolves the published bank for a material, or null when it has none. */
+export const findPublishedTestSet = async (materiId) => {
+  const result = await query(
+    `SELECT id, materi_id, status, question_count, dipublikasikan_pada
+     FROM dbo.training_ojt_test_set WHERE materi_id = @materiId AND status = 'published';`,
+    (request) => request.input('materiId', sql.Int, materiId),
+  );
+  return result.recordset[0] ? mapTestSet(result.recordset[0]) : null;
+};
+
+/**
+ * Per material readiness, for every material scheduled in a batch.
+ *
+ * Exists so the screen can say whether a pre-test would open an empty form. That
+ * failure was invisible before: a QR could be printed and handed out with no
+ * questions behind it and nobody found out until a participant scanned it.
+ */
+export const getAssessmentSummary = async (batchId) => {
+  const result = await query(
+    `SELECT j.id AS jadwal_id, j.materi_id, j.tanggal, j.jam_mulai, j.jam_selesai,
+            j.pengisi_nip, j.catatan,
+            m.kode AS materi_kode, m.nama AS materi_nama, m.urutan,
+            ts.id AS test_set_id, ts.status AS test_set_status,
+            ts.question_count, ts.dipublikasikan_pada,
+            (SELECT COUNT(*) FROM dbo.training_ojt_peserta p WHERE p.batch_id = j.batch_id AND p.aktif = 1) AS peserta_count,
+            (SELECT COUNT(*) FROM dbo.training_ojt_test_session s
+              WHERE s.test_set_id = ts.id AND s.status = 'locked') AS sesi_terkunci
+     FROM dbo.training_ojt_jadwal_materi j
+     JOIN dbo.training_ojt_materi m ON m.id = j.materi_id
+     LEFT JOIN dbo.training_ojt_test_set ts ON ts.materi_id = m.id
+     WHERE j.batch_id = @batchId
+     ORDER BY j.tanggal, m.urutan;`,
+    (request) => request.input('batchId', sql.Int, batchId),
+  );
+
+  return result.recordset.map((row) => ({
+    jadwalId: row.jadwal_id,
+    materiId: row.materi_id,
+    materiKode: row.materi_kode,
+    materiNama: row.materi_nama,
+    tanggal: toIso(row.tanggal),
+    jamMulai: row.jam_mulai ? String(row.jam_mulai).slice(0, 5) : null,
+    jamSelesai: row.jam_selesai ? String(row.jam_selesai).slice(0, 5) : null,
+    pengisiNip: row.pengisi_nip ?? null,
+    catatan: row.catatan ?? null,
+    pesertaCount: Number(row.peserta_count),
+    testSetId: row.test_set_id ?? null,
+    testSetStatus: row.test_set_status ?? null,
+    questionCount: Number(row.question_count ?? 0),
+    publishedAt: row.dipublikasikan_pada ? new Date(row.dipublikasikan_pada).toISOString() : null,
+    sesiTerkunci: Number(row.sesi_terkunci ?? 0),
+    /**
+     The one thing the screen must not let happen quietly: handing out a pre-test
+     QR that resolves to nothing.
+     */
+    siapUntukUji:
+      row.test_set_status === 'published' && Number(row.question_count ?? 0) > 0,
+  }));
 };
 
 export const addQuestion = async (testSetId, input) => {
@@ -123,7 +208,12 @@ export const deleteQuestion = async (testSetId, questionId) => {
   return (essay.rowsAffected[0] ?? 0) > 0;
 };
 
-/** Grading happens here so the published test cannot carry a stale count. */
+/**
+ * Locks the question count in at publish time.
+ *
+ * A published bank that could still gain questions would let a participant who
+ * already answered be scored against a different paper than the one they saw.
+ */
 export const publishTestSet = async (testSetId) => {
   const result = await query(`
     UPDATE dbo.training_ojt_test_set
@@ -132,7 +222,7 @@ export const publishTestSet = async (testSetId) => {
           (SELECT COUNT(*) FROM dbo.training_ojt_question_pg WHERE test_set_id = @id)
           + (SELECT COUNT(*) FROM dbo.training_ojt_question_essay WHERE test_set_id = @id),
         dipublikasikan_pada = SYSUTCDATETIME()
-    WHERE id = @id
+    WHERE id = @id AND status = 'draft'
       AND EXISTS (SELECT 1 FROM dbo.training_ojt_question_pg WHERE test_set_id = @id
                   UNION ALL SELECT 1 FROM dbo.training_ojt_question_essay WHERE test_set_id = @id);`,
     (request) => request.input('id', sql.Int, testSetId),
@@ -140,33 +230,83 @@ export const publishTestSet = async (testSetId) => {
   return (result.rowsAffected[0] ?? 0) > 0;
 };
 
+/** Back to draft so a corrected question can be added. Answers already taken are
+ *  untouched: the locked session keeps its own graded rows. */
+export const unpublishTestSet = async (testSetId) => {
+  const result = await query(
+    `UPDATE dbo.training_ojt_test_set SET status = 'draft', dipublikasikan_pada = NULL WHERE id = @id;`,
+    (request) => request.input('id', sql.Int, testSetId),
+  );
+  return (result.rowsAffected[0] ?? 0) > 0;
+};
+
 /* ------------------------------------------------------------------------ QR */
 
-export const createQr = async (batchId, purpose) => {
+/**
+ * Issues a QR for one material of one batch, revoking the previous one for that
+ * same combination.
+ *
+ * Previously every click minted another code valid for thirty days, so a batch
+ * ended up with a drawer of codes that all still worked and no way to tell which
+ * was the current one. Revoking on issue leaves exactly one live code per
+ * material and purpose, which is the only one anyone should be holding.
+ */
+export const createQr = async (batchId, materiId, purpose) => {
   const rawToken = randomBytes(32).toString('base64url');
   await query(
-    `INSERT INTO dbo.training_ojt_qr_access (id, batch_id, token_hash, purpose, expires_at, max_uses)
-     VALUES (@id, @batchId, @tokenHash, @purpose, DATEADD(day, 30, SYSUTCDATETIME()), 10000);`,
+    `UPDATE dbo.training_ojt_qr_access
+     SET revoked_at = SYSUTCDATETIME()
+     WHERE batch_id = @batchId AND materi_id = @materiId AND purpose = @purpose
+       AND revoked_at IS NULL;`,
+    (request) =>
+      request
+        .input('batchId', sql.Int, batchId)
+        .input('materiId', sql.Int, materiId)
+        .input('purpose', sql.VarChar(30), purpose),
+  );
+  await query(
+    `INSERT INTO dbo.training_ojt_qr_access (id, batch_id, materi_id, token_hash, purpose, expires_at, max_uses)
+     VALUES (@id, @batchId, @materiId, @tokenHash, @purpose, DATEADD(day, 30, SYSUTCDATETIME()), 10000);`,
     (request) =>
       request
         .input('id', sql.UniqueIdentifier, randomUUID())
         .input('batchId', sql.Int, batchId)
+        .input('materiId', sql.Int, materiId)
         .input('tokenHash', sql.Char(64), hash(rawToken))
         .input('purpose', sql.VarChar(30), purpose),
   );
   return rawToken;
 };
 
+/**
+ * Resolves a participant-facing code.
+ *
+ * Joins the material and its scheduled date so the participant page can say what
+ * they are being assessed on, and so attendance can be recorded against the day
+ * the material actually runs rather than the day the phone was scanned.
+ */
 export const resolveQr = async (token) => {
   const result = await query(
-    `SELECT TOP 1 q.id, q.batch_id, q.purpose, b.judul, b.tanggal_mulai, b.tanggal_selesai, b.lokasi, q.expires_at
+    `SELECT TOP 1 q.id, q.batch_id, q.materi_id, q.purpose, q.expires_at,
+            b.judul, b.tanggal_mulai, b.tanggal_selesai, b.lokasi,
+            m.kode AS materi_kode, m.nama AS materi_nama,
+            j.tanggal AS materi_tanggal
      FROM dbo.training_ojt_qr_access q
      JOIN dbo.training_ojt_batch b ON b.id = q.batch_id
+     JOIN dbo.training_ojt_materi m ON m.id = q.materi_id
+     LEFT JOIN dbo.training_ojt_jadwal_materi j ON j.batch_id = q.batch_id AND j.materi_id = q.materi_id
      WHERE q.token_hash = @tokenHash AND q.revoked_at IS NULL
        AND q.expires_at > SYSUTCDATETIME() AND q.used_count < q.max_uses;`,
     (request) => request.input('tokenHash', sql.Char(64), hash(String(token ?? ''))),
   );
-  return result.recordset[0] ?? null;
+  const row = result.recordset[0];
+  if (!row) return null;
+  return {
+    ...row,
+    materi_kode: row.materi_kode,
+    materi_nama: row.materi_nama,
+    materi_tanggal: row.materi_tanggal ? toIso(row.materi_tanggal) : null,
+  };
 };
 
 /**
@@ -195,6 +335,9 @@ export const bumpQrUse = async (qrId) => {
  * Returns the session for this participant and phase, creating it if absent.
  * A submitted session is returned untouched so a participant cannot retake a
  * locked test by rescanning the QR.
+ *
+ * The material comes in through test_set_id, so this is already per material and
+ * the key did not have to change.
  */
 export const getOrCreateSession = async (testSetId, pesertaId, phase) => {
   const existing = await query(
@@ -303,36 +446,29 @@ export const submitAnswers = async (sessionId, testSetId, answers) => {
   );
 };
 
-export const submitFeedback = async (batchId, pesertaId, entries) => {
+export const submitFeedback = async (batchId, materiId, pesertaId, entries) => {
   for (const entry of entries) {
-    await query(
+    const updated = await query(
       `UPDATE dbo.training_ojt_feedback
        SET score = @score, comment = @comment, dikirim_pada = SYSUTCDATETIME()
-       WHERE batch_id = @batchId AND peserta_id = @pesertaId AND aspect_code = @aspect;`,
+       WHERE batch_id = @batchId AND materi_id = @materiId AND peserta_id = @pesertaId AND aspect_code = @aspect;`,
       (request) =>
         request
           .input('batchId', sql.Int, batchId)
+          .input('materiId', sql.Int, materiId)
           .input('pesertaId', sql.Int, pesertaId)
           .input('aspect', sql.NVarChar(100), entry.aspect)
           .input('score', sql.Decimal(3, 1), entry.score)
           .input('comment', sql.NVarChar(sql.MAX), entry.comment ?? null),
     );
-    const updated = await query(
-      `SELECT TOP 1 1 AS ok FROM dbo.training_ojt_feedback
-       WHERE batch_id = @batchId AND peserta_id = @pesertaId AND aspect_code = @aspect;`,
-      (request) =>
-        request
-          .input('batchId', sql.Int, batchId)
-          .input('pesertaId', sql.Int, pesertaId)
-          .input('aspect', sql.NVarChar(100), entry.aspect),
-    );
-    if (updated.recordset.length === 0) {
+    if ((updated.rowsAffected[0] ?? 0) === 0) {
       await query(
-        `INSERT INTO dbo.training_ojt_feedback (batch_id, peserta_id, aspect_code, score, comment)
-         VALUES (@batchId, @pesertaId, @aspect, @score, @comment);`,
+        `INSERT INTO dbo.training_ojt_feedback (batch_id, materi_id, peserta_id, aspect_code, score, comment)
+         VALUES (@batchId, @materiId, @pesertaId, @aspect, @score, @comment);`,
         (request) =>
           request
             .input('batchId', sql.Int, batchId)
+            .input('materiId', sql.Int, materiId)
             .input('pesertaId', sql.Int, pesertaId)
             .input('aspect', sql.NVarChar(100), entry.aspect)
             .input('score', sql.Decimal(3, 1), entry.score)
@@ -342,56 +478,90 @@ export const submitFeedback = async (batchId, pesertaId, entries) => {
   }
 };
 
-export const recordAttendance = async (batchId, pesertaId, signatureData) => {
-  const today = new Date();
-  const iso = today.toISOString().slice(0, 10);
-  const batch = await query(
-    `SELECT tanggal_mulai, tanggal_selesai FROM dbo.training_ojt_batch WHERE id = @id;`,
-    (request) => request.input('id', sql.Int, batchId),
+/**
+ * Records presence for one material of one batch.
+ *
+ * The row is written against the material's scheduled date, not the date of the
+ * scan. One material runs on one day, so that date is already known, and keying
+ * on it means a late scan still lands on the right day instead of on whichever day
+ * the phone happened to be used. It also makes a rescan idempotent.
+ */
+export const recordAttendance = async (batchId, materiId, pesertaId, signatureData) => {
+  const schedule = await query(
+    `SELECT j.tanggal, b.tanggal_mulai, b.tanggal_selesai, b.judul, m.nama AS materi_nama
+     FROM dbo.training_ojt_jadwal_materi j
+     JOIN dbo.training_ojt_batch b ON b.id = j.batch_id
+     JOIN dbo.training_ojt_materi m ON m.id = j.materi_id
+     WHERE j.batch_id = @batchId AND j.materi_id = @materiId;`,
+    (request) => request.input('batchId', sql.Int, batchId).input('materiId', sql.Int, materiId),
   );
-  const row = batch.recordset[0];
-  if (!row || iso < toIso(row.tanggal_mulai) || iso > toIso(row.tanggal_selesai)) return 'OUT_OF_PERIOD';
+  const row = schedule.recordset[0];
+  if (!row) return 'MATERIAL_NOT_SCHEDULED';
+
+  const tanggal = toIso(row.tanggal);
+  if (tanggal < toIso(row.tanggal_mulai) || tanggal > toIso(row.tanggal_selesai)) return 'OUT_OF_PERIOD';
 
   const present = await query(
-    `SELECT TOP 1 1 AS ok FROM dbo.training_ojt_absensi WHERE peserta_id = @pesertaId AND tanggal = @today;`,
-    (request) => request.input('pesertaId', sql.Int, pesertaId).input('today', sql.Date, toDate(iso)),
+    `SELECT TOP 1 1 AS ok FROM dbo.training_ojt_absensi
+     WHERE peserta_id = @pesertaId AND materi_id = @materiId AND tanggal = @tanggal;`,
+    (request) =>
+      request
+        .input('pesertaId', sql.Int, pesertaId)
+        .input('materiId', sql.Int, materiId)
+        .input('tanggal', sql.Date, toDate(tanggal)),
   );
   if (present.recordset.length > 0) return 'ALREADY_SUBMITTED';
 
   await query(
-    `INSERT INTO dbo.training_ojt_absensi (peserta_id, tanggal, status, catatan, signature_data)
-     VALUES (@pesertaId, @today, 'hadir', @note, @signature);`,
+    `INSERT INTO dbo.training_ojt_absensi (peserta_id, materi_id, tanggal, status, catatan, signature_data)
+     VALUES (@pesertaId, @materiId, @tanggal, 'hadir', @note, @signature);`,
     (request) =>
       request
         .input('pesertaId', sql.Int, pesertaId)
-        .input('today', sql.Date, toDate(iso))
+        .input('materiId', sql.Int, materiId)
+        .input('tanggal', sql.Date, toDate(tanggal))
         .input('note', sql.NVarChar(500), 'Absensi mandiri lewat QR')
         .input('signature', sql.NVarChar(sql.MAX), signatureData ?? null),
   );
   return 'OK';
 };
 
+/** Read-only report, per material, restricted to the batch's own participants. */
 export const getResults = async (batchId) => {
-  const [submissions, attendance] = await Promise.all([
+  const [submissions, perPeserta, perMateri] = await Promise.all([
     query(`
       SELECT s.phase, p.nama_lengkap, p.kode_peserta, s.status,
+             m.id AS materi_id, m.kode AS materi_kode, m.nama AS materi_nama, m.urutan,
              COALESCE(SUM(g.score), 0) AS score, COALESCE(SUM(q.point), 0) AS total_score
       FROM dbo.training_ojt_test_session s
       JOIN dbo.training_ojt_peserta p ON p.id = s.peserta_id
       JOIN dbo.training_ojt_test_set ts ON ts.id = s.test_set_id
+      JOIN dbo.training_ojt_materi m ON m.id = ts.materi_id
       LEFT JOIN dbo.training_ojt_answer_pg a ON a.session_id = s.id
       LEFT JOIN dbo.training_ojt_question_pg q ON q.id = a.question_id
       LEFT JOIN dbo.training_ojt_answer_grade_pg g ON g.answer_id = a.id
-      WHERE ts.batch_id = @batchId
-      GROUP BY s.phase, p.nama_lengkap, p.kode_peserta, s.status
-      ORDER BY s.phase, p.nama_lengkap;`,
+      WHERE p.batch_id = @batchId
+      GROUP BY s.phase, p.nama_lengkap, p.kode_peserta, s.status, m.id, m.kode, m.nama, m.urutan
+      ORDER BY m.urutan, s.phase, p.nama_lengkap;`,
       (request) => request.input('batchId', sql.Int, batchId)),
     query(`
-      SELECT p.kode_peserta, p.nama_lengkap, COUNT(a.id) AS hari_hadir
+      SELECT p.kode_peserta, p.nama_lengkap,
+             COUNT(a.id) AS materi_hadir,
+             COUNT(DISTINCT a.tanggal) AS hari_hadir
       FROM dbo.training_ojt_peserta p
       LEFT JOIN dbo.training_ojt_absensi a ON a.peserta_id = p.id AND a.status = 'hadir'
       WHERE p.batch_id = @batchId AND p.aktif = 1
       GROUP BY p.kode_peserta, p.nama_lengkap ORDER BY p.nama_lengkap;`,
+      (request) => request.input('batchId', sql.Int, batchId)),
+    query(`
+      SELECT m.id AS materi_id, m.kode AS materi_kode, m.nama AS materi_nama, m.urutan,
+             j.tanggal, COUNT(a.id) AS hadir
+      FROM dbo.training_ojt_jadwal_materi j
+      JOIN dbo.training_ojt_materi m ON m.id = j.materi_id
+      LEFT JOIN dbo.training_ojt_absensi a ON a.materi_id = m.id AND a.tanggal = j.tanggal AND a.status = 'hadir'
+      WHERE j.batch_id = @batchId
+      GROUP BY m.id, m.kode, m.nama, m.urutan, j.tanggal
+      ORDER BY j.tanggal, m.urutan;`,
       (request) => request.input('batchId', sql.Int, batchId)),
   ]);
 
@@ -401,6 +571,9 @@ export const getResults = async (batchId) => {
       kodePeserta: row.kode_peserta,
       name: row.nama_lengkap,
       status: row.status,
+      materiId: row.materi_id,
+      materiKode: row.materi_kode,
+      materiNama: row.materi_nama,
       score: Number(row.score),
       totalScore: Number(row.total_score),
       percentage:
@@ -408,10 +581,19 @@ export const getResults = async (batchId) => {
           ? Math.round((Number(row.score) / Number(row.total_score)) * 100)
           : null,
     })),
-    attendance: attendance.recordset.map((row) => ({
+    attendance: perPeserta.recordset.map((row) => ({
       kodePeserta: row.kode_peserta,
       name: row.nama_lengkap,
+      /* Materials attended, not days: attendance is now recorded per material. */
+      materiHadir: Number(row.materi_hadir),
       hariHadir: Number(row.hari_hadir),
+    })),
+    attendanceByMateri: perMateri.recordset.map((row) => ({
+      materiId: row.materi_id,
+      materiKode: row.materi_kode,
+      materiNama: row.materi_nama,
+      tanggal: toIso(row.tanggal),
+      hadir: Number(row.hadir),
     })),
   };
 };

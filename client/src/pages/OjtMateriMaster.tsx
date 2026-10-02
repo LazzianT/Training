@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import type { OjtMateriMaster } from '@training/contracts';
 import { ApiRequestError } from '../api/auth.js';
 import {
@@ -292,6 +293,12 @@ export const OjtMateriMasterPage = () => {
                       >
                         {item.aktif ? 'Nonaktifkan' : 'Aktifkan'}
                       </button>
+                      <Link
+                        to={`/ojt/materi/${item.id}/soal`}
+                        className="h-8 border border-slate-300 px-2.5 text-xs leading-8 font-semibold text-slate-900 outline-none transition duration-150 hover:border-slate-900 focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
+                      >
+                        Soal
+                      </Link>
                     </div>
                   </li>
                 );

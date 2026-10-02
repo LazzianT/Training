@@ -147,6 +147,18 @@ export const OjtAccessPage = () => {
           <h1 className="mt-2.5 text-2xl font-semibold tracking-[-0.04em] text-slate-900 sm:text-3xl">
             {access.title}
           </h1>
+          {/*
+            The material leads. A participant holding a QR needs to know what they
+            are being assessed on before they type their code, otherwise the first
+            thing they learn is from the questions.
+          */}
+          <p className="mt-2 text-sm font-semibold text-slate-900">
+            {access.materiNama}
+            <span className="ml-2 text-xs font-normal text-slate-500 tabular-nums">
+              {access.materiKode}
+              {access.materiTanggal ? ` · ${shortDate(access.materiTanggal)}` : ''}
+            </span>
+          </p>
           <p className="mt-1.5 text-sm text-slate-500">
             {shortDate(access.tanggalMulai)} – {shortDate(access.tanggalSelesai)}
             {access.lokasi ? ` · ${access.lokasi}` : ''}

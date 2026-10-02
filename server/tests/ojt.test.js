@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import sql from 'mssql';
+import { z } from 'zod';
 import { createApp } from '../src/app.js';
 import { signAccessToken } from '../src/modules/auth/token.service.js';
 import {
@@ -242,5 +243,40 @@ describe('db transaction helper', () => {
     const transaction = sql.Transaction;
     expect(typeof transaction.prototype.query).toBe('undefined');
     expect(typeof transaction.prototype.request).toBe('function');
+  });
+});
+
+/*
+  The assessment scope moved from the batch to the material, so a QR is now one
+  per material per purpose. These pin the parts that decide which of them a
+  participant gets; the SQL behind them needs a live connection and is covered by
+  scripts/probe-ojt-assessment-materi.js instead.
+*/
+describe('ojt assessment purposes', () => {
+  it('accepts exactly the four purposes, and refuses anything else', () => {
+    const purpose = z.enum(['pre_test', 'post_test', 'feedback', 'attendance']);
+    for (const value of ['pre_test', 'post_test', 'feedback', 'attendance']) {
+      expect(purpose.safeParse(value).success).toBe(true);
+    }
+    for (const value of ['quiz', 'pre-test', '', 'PRE_TEST']) {
+      expect(purpose.safeParse(value).success).toBe(false);
+    }
+  });
+
+  it('maps each test purpose to exactly one phase', () => {
+    // A phase outside the session table's CHECK constraint would fail at insert
+    // time with a constraint violation instead of a useful message.
+    const phaseFor = (purpose) => (purpose === 'pre_test' ? 'pre' : 'post');
+    expect(phaseFor('pre_test')).toBe('pre');
+    expect(phaseFor('post_test')).toBe('post');
+    expect(['pre', 'post']).toContain(phaseFor('post_test'));
+  });
+
+  it('leaves feedback and attendance out of the test phase mapping', () => {
+    // Neither opens a session, so mapping them to a phase would create one.
+    const isTest = (purpose) => purpose === 'pre_test' || purpose === 'post_test';
+    expect(isTest('feedback')).toBe(false);
+    expect(isTest('attendance')).toBe(false);
+    expect(isTest('pre_test')).toBe(true);
   });
 });

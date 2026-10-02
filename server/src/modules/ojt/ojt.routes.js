@@ -24,20 +24,23 @@ import {
 import {
   addQuestion,
   createQr,
-  createTestSet,
   deleteQuestion,
+  ensureTestSet,
   findPeserta,
+  findPublishedTestSet,
+  findTestSet,
+  getAssessmentSummary,
   getOrCreateSession,
   getResults,
   getSession,
   listQuestions,
-  listTestSets,
   loadAssessment,
   publishTestSet,
   recordAttendance,
   resolveQr,
   submitAnswers,
   submitFeedback,
+  unpublishTestSet,
 } from './ojt.assessment.repository.js';
 import {
   addPesertaBody,
@@ -61,7 +64,6 @@ const fail = (response, status, code, message, details) => {
 
 const isDuplicate = (error) => error?.number === 2627 || error?.number === 2601;
 const idParam = z.coerce.number().int().positive();
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Tanggal harus format YYYY-MM-DD');
 
 const requireHumanCapital = (response, actor) => {
   if (actor.departId !== '0300') {
@@ -369,6 +371,11 @@ const DOMAIN_ERRORS = {
   ],
   MATERI_SUDAH_ADA: [409, 'MATERI_SUDAH_ADA', 'Materi dengan nama itu sudah ada di katalog.'],
   MATERI_NOT_FOUND: [404, 'MATERI_NOT_FOUND', 'Materi tidak ditemukan.'],
+  MATERI_SUDAH_DIJADWALKAN: [
+    409,
+    'MATERI_SUDAH_DIJADWALKAN',
+    'Materi ini sudah ada di jadwal batch pada tanggal lain. Satu materi hanya bisa dijadwalkan satu hari.',
+  ],
 };
 
 const respondToDomainError = (response, error, fallback) => {
@@ -448,19 +455,50 @@ ojtRouter.delete('/jadwal/:jadwalId', async (request, response, next) => {
 
 /* --------------------------------------------------------- question authoring */
 
-ojtRouter.get('/batches/:id/test-sets', async (request, response, next) => {
+/*
+  The question bank belongs to the material, not the batch: a Safety Induction
+  test is written once and every batch that teaches the material reuses it. The
+  day it runs and who presents it live on the schedule.
+
+  POST rather than PUT because it is an ensure, not a create. Two people opening
+  the editor for the same material at the same time have to converge on one bank
+  rather than race for the unique constraint on materi_id.
+*/
+ojtRouter.get('/materi/:materiId/test-set', async (request, response, next) => {
   if (!requireHumanCapital(response, response.locals.actor)) return;
-  const parsedId = idParam.safeParse(request.params.id);
+  const parsedId = idParam.safeParse(request.params.materiId);
   if (!parsedId.success) {
-    fail(response, 400, 'VALIDATION_ERROR', 'Id batch tidak valid.');
+    fail(response, 400, 'VALIDATION_ERROR', 'Id materi tidak valid.');
     return;
   }
   try {
-    response.status(200).json(await listTestSets(parsedId.data));
+    const found = await findTestSet(parsedId.data);
+    if (!found) {
+      fail(response, 404, 'TEST_SET_NOT_FOUND', 'Bank soal untuk materi ini belum dibuat.');
+      return;
+    }
+    response.status(200).json(found);
   } catch (error) {
     next(error);
   }
 });
+
+ojtRouter.post('/materi/:materiId/test-set', async (request, response, next) => {
+  if (!requireHumanCapital(response, response.locals.actor)) return;
+  const parsedId = idParam.safeParse(request.params.materiId);
+  if (!parsedId.success) {
+    fail(response, 400, 'VALIDATION_ERROR', 'Id materi tidak valid.');
+    return;
+  }
+  try {
+    const found = await ensureTestSet(parsedId.data);
+    response.status(found.created ? 201 : 200).json(found);
+  } catch (error) {
+    next(error);
+  }
+});
+
+/* --------------------------------------------------------- question authoring */
 
 const questionBody = z.object({
   type: z.enum(['pg', 'essay']),
@@ -474,24 +512,6 @@ const questionBody = z.object({
   answerGuide: z.string().trim().max(20_000).optional(),
   imageData: z.string().max(2_000_000).optional(),
   point: z.coerce.number().min(0).max(1000).optional(),
-});
-
-ojtRouter.post('/batches/:id/test-sets', async (request, response, next) => {
-  if (!requireHumanCapital(response, response.locals.actor)) return;
-  const parsedId = idParam.safeParse(request.params.id);
-  const body = z
-    .object({ type: z.enum(['pg', 'essay', 'mixed']), testDate: isoDate.optional() })
-    .safeParse(request.body ?? {});
-  if (!parsedId.success || !body.success) {
-    fail(response, 400, 'VALIDATION_ERROR', 'Data test set tidak valid.');
-    return;
-  }
-  try {
-    const id = await createTestSet(parsedId.data, body.data.type, response.locals.actor.nip, body.data.testDate ?? new Date().toISOString().slice(0, 10));
-    response.status(201).json({ id });
-  } catch (error) {
-    next(error);
-  }
 });
 
 ojtRouter.get('/test-sets/:testSetId/questions', async (request, response, next) => {
@@ -565,6 +585,30 @@ ojtRouter.post('/test-sets/:testSetId/publish', async (request, response, next) 
   }
 });
 
+/*
+  Back to draft. Needed because publish locks the question count in: once
+  published, a typo can no longer be corrected without republishing a paper that
+  participants have already answered. Answers already taken keep their own graded
+  rows, so this only reopens authoring.
+*/
+ojtRouter.post('/test-sets/:testSetId/unpublish', async (request, response, next) => {
+  if (!requireHumanCapital(response, response.locals.actor)) return;
+  const parsedId = idParam.safeParse(request.params.testSetId);
+  if (!parsedId.success) {
+    fail(response, 400, 'VALIDATION_ERROR', 'Id test set tidak valid.');
+    return;
+  }
+  try {
+    if (!(await unpublishTestSet(parsedId.data))) {
+      fail(response, 409, 'UNPUBLISH_FAILED', 'Test set tidak dalam status draft.');
+      return;
+    }
+    response.status(200).json({ status: 'draft' });
+  } catch (error) {
+    next(error);
+  }
+});
+
 ojtRouter.get('/batches/:id/results', async (request, response, next) => {
   if (!requireHumanCapital(response, response.locals.actor)) return;
   const parsedId = idParam.safeParse(request.params.id);
@@ -579,20 +623,55 @@ ojtRouter.get('/batches/:id/results', async (request, response, next) => {
   }
 });
 
-ojtRouter.post('/batches/:id/qr', async (request, response, next) => {
+/*
+  Per material readiness for every scheduled material in a batch.
+
+  The screen calls this before printing a QR, so it can say that a pre-test would
+  open an empty form instead of handing the code out first.
+*/
+ojtRouter.get('/batches/:id/assessment', async (request, response, next) => {
   if (!requireHumanCapital(response, response.locals.actor)) return;
   const parsedId = idParam.safeParse(request.params.id);
-  const purpose = z
-    .enum(['pre_test', 'post_test', 'feedback', 'attendance'])
-    .safeParse(request.body?.purpose);
-  if (!parsedId.success || !purpose.success) {
-    fail(response, 400, 'VALIDATION_ERROR', 'Jenis QR tidak valid.');
+  if (!parsedId.success) {
+    fail(response, 400, 'VALIDATION_ERROR', 'Id batch tidak valid.');
     return;
   }
   try {
     await withBatch(response, parsedId.data, async () => {
-      const token = await createQr(parsedId.data, purpose.data);
-      response.status(201).json({ token, url: `/ojt/access/${token}` });
+      response.status(200).json(await getAssessmentSummary(parsedId.data));
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/*
+  One QR per material per purpose.
+
+  Checked against the schedule rather than the catalog: a QR for a material that
+  is not in this batch's calendar is a code nobody can complete, because the
+  attendance and feedback it writes are scoped to the schedule.
+*/
+ojtRouter.post('/batches/:id/materi/:materiId/qr', async (request, response, next) => {
+  if (!requireHumanCapital(response, response.locals.actor)) return;
+  const parsedId = idParam.safeParse(request.params.id);
+  const materiId = idParam.safeParse(request.params.materiId);
+  const purpose = z
+    .enum(['pre_test', 'post_test', 'feedback', 'attendance'])
+    .safeParse(request.body?.purpose);
+  if (!parsedId.success || !materiId.success || !purpose.success) {
+    fail(response, 400, 'VALIDATION_ERROR', 'Permintaan QR tidak valid.');
+    return;
+  }
+  try {
+    await withBatch(response, parsedId.data, async (batch) => {
+      const scheduled = batch.jadwal.some((item) => item.materiId === materiId.data);
+      if (!scheduled) {
+        fail(response, 400, 'MATERI_TIDAK_DIJADWALKAN', 'Materi ini belum ada di jadwal batch.');
+        return;
+      }
+      const token = await createQr(parsedId.data, materiId.data, purpose.data);
+      response.status(201).json({ token, url: `/ojt/access/${token}`, materiId: materiId.data, purpose: purpose.data });
     });
   } catch (error) {
     next(error);
@@ -619,6 +698,15 @@ ojtPublicRouter.get('/access/:token', async (request, response, next) => {
       batchId: access.batch_id,
       purpose: access.purpose,
       title: access.judul,
+      /*
+        The material is named up front. A participant holding a QR needs to know
+        what they are being assessed on before typing their code, otherwise the
+        first thing they learn is from the questions.
+      */
+      materiId: access.materi_id,
+      materiKode: access.materi_kode,
+      materiNama: access.materi_nama,
+      materiTanggal: access.materi_tanggal,
       lokasi: access.lokasi ?? null,
       tanggalMulai: access.tanggal_mulai instanceof Date ? access.tanggal_mulai.toISOString().slice(0, 10) : String(access.tanggal_mulai).slice(0, 10),
       tanggalSelesai: access.tanggal_selesai instanceof Date ? access.tanggal_selesai.toISOString().slice(0, 10) : String(access.tanggal_selesai).slice(0, 10),
@@ -659,32 +747,54 @@ ojtPublicRouter.post('/access/:token/open', async (request, response, next) => {
       const signatureData = signature.success ? signature.data.signatureData : null;
 
       if (signatureData) {
-        const outcome = await recordAttendance(access.batch_id, peserta.id, signatureData);
+        const outcome = await recordAttendance(access.batch_id, access.materi_id, peserta.id, signatureData);
         if (outcome === 'ALREADY_SUBMITTED') {
-          publicError(response, 409, 'ALREADY_SUBMITTED', 'Absensi hari ini sudah tercatat.');
+          publicError(response, 409, 'ALREADY_SUBMITTED', 'Absensi untuk materi ini sudah tercatat.');
           return;
         }
         if (outcome === 'OUT_OF_PERIOD') {
           publicError(response, 409, 'OUT_OF_PERIOD', 'Absensi hanya dapat diisi pada periode batch.');
           return;
         }
-        response.status(200).json({ nama: peserta.nama_lengkap, recorded: true });
+        if (outcome === 'MATERIAL_NOT_SCHEDULED') {
+          publicError(response, 409, 'MATERI_TIDAK_DIJADWALKAN', 'Materi ini tidak ada di jadwal batch.');
+          return;
+        }
+        response.status(200).json({
+          nama: peserta.nama_lengkap,
+          recorded: true,
+          tanggal: access.materi_tanggal,
+          materiNama: access.materi_nama,
+        });
         return;
       }
-      response.status(200).json({ nama: peserta.nama_lengkap });
+      response.status(200).json({
+        nama: peserta.nama_lengkap,
+        materiNama: access.materi_nama,
+        tanggal: access.materi_tanggal,
+      });
       return;
     }
 
     if (access.purpose === 'feedback') {
-      response.status(200).json({ nama: peserta.nama_lengkap, pesertaId: peserta.id });
+      response.status(200).json({
+        nama: peserta.nama_lengkap,
+        pesertaId: peserta.id,
+        materiNama: access.materi_nama,
+      });
       return;
     }
 
-    const sets = await listTestSets(access.batch_id);
+    /*
+      Resolved by material, not by scanning the batch's banks for the first
+      published one. With the scope moved off the batch there is exactly one bank
+      per material, so "the first published set in this batch" is no longer a
+      meaningful question.
+    */
     const phase = access.purpose === 'pre_test' ? 'pre' : 'post';
-    const published = sets.find((item) => item.status === 'published' && item.questionCount > 0);
+    const published = await findPublishedTestSet(access.materi_id);
     if (!published) {
-      publicError(response, 409, 'TEST_NOT_READY', 'Soal belum tersedia. Hubungi pengisi batch.');
+      publicError(response, 409, 'TEST_NOT_READY', 'Soal untuk materi ini belum tersedia. Hubungi pengisi batch.');
       return;
     }
     const session = await getOrCreateSession(published.id, peserta.id, phase);
@@ -694,6 +804,8 @@ ojtPublicRouter.post('/access/:token/open', async (request, response, next) => {
     }
     response.status(200).json({
       nama: peserta.nama_lengkap,
+      materiNama: access.materi_nama,
+      phase,
       sessionId: session.id,
       questions: await loadAssessment(published.id),
     });
@@ -787,7 +899,7 @@ ojtPublicRouter.post('/access/:token/feedback', async (request, response, next) 
       score: entry.score,
       comment: entry.comment ?? body.data.comment ?? null,
     }));
-    await submitFeedback(access.batch_id, peserta.id, entries);
+    await submitFeedback(access.batch_id, access.materi_id, peserta.id, entries);
     response.status(200).json({ ok: true });
   } catch (error) {
     next(error);

@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import type { OjtBatchDetail, OjtPesertaDetail } from '@training/contracts';
+import type { OjtAssessmentSummary, OjtBatchDetail, OjtPesertaDetail } from '@training/contracts';
 import { ApiRequestError } from '../api/auth.js';
 import {
   addOjtPeserta,
   createOjtJadwal,
-  createOjtQr,
   deleteOjtJadwal,
+  fetchOjtAssessment,
   fetchOjtBatch,
   fetchOjtResults,
   removeOjtPeserta,
@@ -14,8 +14,9 @@ import {
   updateOjtJadwal,
 } from '../api/ojt.js';
 import { OjtJadwalCalendar, type JadwalFormInput } from '../components/OjtJadwalCalendar.js';
+import { OjtMateriAssessment } from '../components/OjtMateriAssessment.js';
 import { Button, EmptyState, Field, Panel, StatTile } from '../components/ui/index.js';
-import { CopyButton, useToast } from '../components/Toast.js';
+import { useToast } from '../components/Toast.js';
 import { useConfirm } from '../components/ConfirmDialog.js';
 import { Modal } from '../components/Modal.js';
 import { useAuth } from '../auth/AuthContext.js';
@@ -30,13 +31,6 @@ const weekdayLabel = (iso: string) => {
   if (!year || !month || !day) return '';
   return WEEKDAYS[new Date(year, month - 1, day).getDay()];
 };
-
-const QR_PURPOSES = [
-  { value: 'pre_test', label: 'Pre-test' },
-  { value: 'post_test', label: 'Post-test' },
-  { value: 'feedback', label: 'Feedback' },
-  { value: 'attendance', label: 'Absensi' },
-] as const;
 
 /** Weekdays only: OJT runs Monday to Friday, and a Saturday row would be noise. */
 const workingDays = (start: string, end: string) => {
@@ -61,8 +55,9 @@ export const OjtBatchPage = () => {
 
   const [batch, setBatch] = useState<OjtBatchDetail | null>(null);
   const [results, setResults] = useState<OjtResults | null>(null);
+  const [assessment, setAssessment] = useState<OjtAssessmentSummary[]>([]);
+  const [openMateri, setOpenMateri] = useState<number | null>(null);
   const [error, setError] = useState('');
-  const [qr, setQr] = useState<{ purpose: string; url: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [addingPeserta, setAddingPeserta] = useState(false);
   const [pesertaDraft, setPesertaDraft] = useState({ namaLengkap: '' });
@@ -86,6 +81,20 @@ export const OjtBatchPage = () => {
     const controller = new AbortController();
     fetchOjtResults(session.accessToken, batch.id, controller.signal)
       .then(setResults)
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [session, batch]);
+
+  /*
+    Loaded separately from the batch rather than folded into its payload: it is
+    only needed to label the assessment buttons, and a failure here should leave
+    the participant list and the schedule readable rather than blanking the page.
+  */
+  useEffect(() => {
+    if (!session || !batch) return;
+    const controller = new AbortController();
+    fetchOjtAssessment(session.accessToken, batch.id, controller.signal)
+      .then(setAssessment)
       .catch(() => undefined);
     return () => controller.abort();
   }, [session, batch]);
@@ -229,20 +238,6 @@ const submitPeserta = async () => {
     if (!ok) return;
     await setOjtBatchStatus(session.accessToken, batch.id, status);
     await reload();
-  };
-
-  const makeQr = async (purpose: (typeof QR_PURPOSES)[number]['value']) => {
-    if (!session || !batch) return;
-    try {
-      const created = await createOjtQr(session.accessToken, batch.id, purpose);
-      setQr({ purpose, url: created.url });
-    } catch (reason) {
-      push({
-        tone: 'danger',
-        title: 'QR gagal dibuat',
-        description: reason instanceof ApiRequestError ? reason.message : undefined,
-      });
-    }
   };
 
   if (!batch || !session) {
@@ -439,6 +434,9 @@ const submitPeserta = async () => {
                   <th scope="col" className="px-4 py-2.5 text-left text-[11px] font-semibold tracking-[0.1em] text-slate-500 uppercase">
                     Pengisi
                   </th>
+                  <th scope="col" className="px-4 py-2.5 text-right text-[11px] font-semibold tracking-[0.1em] text-slate-500 uppercase">
+                    <span className="sr-only">Assessment</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -491,6 +489,35 @@ const submitPeserta = async () => {
                         <span className="text-sm text-slate-400">Belum ditentukan</span>
                       )}
                     </td>
+                    <td className="px-4 py-3 text-right align-top">
+                      {(() => {
+                        const readiness = assessment.find((row) => row.materiId === item.materiId);
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => setOpenMateri(item.materiId)}
+                            className="inline-flex items-center gap-1.5 border border-slate-300 px-2.5 py-1.5 text-xs font-semibold text-slate-900 outline-none transition duration-150 hover:border-slate-900 hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
+                          >
+                            Assessment
+                            {/*
+                              A dot, not a number: the useful fact is whether a
+                              code would open a real form, and that is a single
+                              bit per material.
+                            */}
+                            <span
+                              title={
+                                readiness?.siapUntukUji
+                                  ? 'Soal sudah siap'
+                                  : 'Soal belum dipublikasikan'
+                              }
+                              className={`h-1.5 w-1.5 rounded-full ${
+                                readiness?.siapUntukUji ? 'bg-emerald-600' : 'bg-amber-500'
+                              }`}
+                            />
+                          </button>
+                        );
+                      })()}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -499,42 +526,20 @@ const submitPeserta = async () => {
         )}
       </Panel>
 
-      <Panel title="Assessment" description="QR memakai batch ini untuk pre-test, post-test, feedback, dan absensi." className="enter-section mt-8">
-        <div className="p-5">
-          <div className="flex flex-wrap gap-2">
-            {QR_PURPOSES.map((purpose) => (
-              <Button
-                key={purpose.value}
-                type="button"
-                variant="secondary"
-                className="h-9 px-3 text-xs"
-                onClick={() => makeQr(purpose.value)}
-              >
-                QR {purpose.label}
-              </Button>
-))}
-          </div>
+      {/*
+        The batch level assessment panel is gone. Four materials taught in a week
+        used to share one pre-test, one feedback form and one attendance mark per
+        participant per day, so none of it measured any of them. Each row of the
+        schedule above now opens its own four codes.
+      */}
+      <OjtMateriAssessment
+        token={session.accessToken}
+        batchId={batch.id}
+        entry={assessment.find((item) => item.materiId === openMateri) ?? null}
+        onClose={() => setOpenMateri(null)}
+      />
 
-          {qr && (
-            <div className="enter-qr mt-5 flex flex-wrap items-center gap-4 border border-slate-200 p-4">
-              <img
-                src={`https://quickchart.io/qr?text=${encodeURIComponent(qr.url)}&size=220`}
-                alt={`QR ${qr.purpose}`}
-                width={112}
-                height={112}
-                className="h-28 w-28"
-              />
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-slate-900">QR {qr.purpose}</p>
-                <p className="mt-1 text-xs break-all text-slate-500">{qr.url}</p>
-              </div>
-              <CopyButton value={qr.url} />
-            </div>
-          )}
-        </div>
-      </Panel>
-
-{results && results.submissions.length > 0 && (
+      {results && results.submissions.length > 0 && (
         <Panel
           title="Hasil Post-test"
           description="Nilai akhir peserta pada batch ini, beserta jumlah hari hadir."

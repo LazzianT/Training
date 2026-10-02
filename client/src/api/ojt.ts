@@ -4,14 +4,15 @@ import type {
   CreateOjtBatchRequest,
   CreateOjtJadwalRequest,
   CreateOjtMateriRequest,
+  OjtAssessmentSummary,
   OjtBatch,
   OjtMateriMaster,
+  OjtMateriTestSet,
   OjtBatchDetail,
   OjtBatchStatus,
   OjtQuestionInput,
   OjtResults,
   OjtSavedQuestion,
-  OjtTestSet,
   UpdateOjtJadwalRequest,
   UpdateOjtMateriRequest,
 } from '@training/contracts';
@@ -129,6 +130,45 @@ export const moveOjtMateri = (token: string, materiId: number, direction: 1 | -1
     method: 'POST',
   });
 
+/* ------------------------------------------------------------- assessment per materi */
+
+/**
+ * One QR per material per purpose. Revokes the previous code for the same
+ * combination, so only the newest one is live.
+ */
+export const createOjtMateriQr = (
+  token: string,
+  batchId: number,
+  materiId: number,
+  purpose: 'pre_test' | 'post_test' | 'feedback' | 'attendance',
+) =>
+  call<{ token: string; url: string; materiId: number; purpose: string }>(
+    `/api/ojt/admin/batches/${batchId}/materi/${materiId}/qr`,
+    { ...admin(token, { purpose }), method: 'POST' },
+  );
+
+export const fetchOjtAssessment = (token: string, batchId: number, signal?: AbortSignal) =>
+  call<OjtAssessmentSummary[]>(`/api/ojt/admin/batches/${batchId}/assessment`, {
+    ...admin(token),
+    signal,
+  });
+
+export const fetchOjtMateriTestSet = (token: string, materiId: number, signal?: AbortSignal) =>
+  call<OjtMateriTestSet>(`/api/ojt/admin/materi/${materiId}/test-set`, { ...admin(token), signal });
+
+/** An ensure, not a create: returns the existing bank when there already is one. */
+export const ensureOjtMateriTestSet = (token: string, materiId: number) =>
+  call<OjtMateriTestSet>(`/api/ojt/admin/materi/${materiId}/test-set`, {
+    ...admin(token),
+    method: 'POST',
+  });
+
+export const unpublishOjtTestSet = (token: string, testSetId: number) =>
+  call<{ status: 'draft' }>(`/api/ojt/admin/test-sets/${testSetId}/unpublish`, {
+    ...admin(token),
+    method: 'POST',
+  });
+
 export const recordOjtAbsensi = (
   token: string,
   batchId: number,
@@ -142,15 +182,6 @@ export const recordOjtAbsensi = (
 export const setOjtMateriDone = (token: string, batchId: number, pesertaId: number, materiId: number, selesai: boolean) =>
   call<{ selesai: boolean }>(`/api/ojt/admin/batches/${batchId}/materi`, {
     ...admin(token, { pesertaId, materiId, selesai }),
-    method: 'POST',
-  });
-
-export const fetchOjtTestSets = (token: string, batchId: number, signal?: AbortSignal) =>
-  call<OjtTestSet[]>(`/api/ojt/admin/batches/${batchId}/test-sets`, { ...admin(token), signal });
-
-export const createOjtTestSet = (token: string, batchId: number, type: 'pg' | 'essay' | 'mixed') =>
-  call<{ id: number }>(`/api/ojt/admin/batches/${batchId}/test-sets`, {
-    ...admin(token, { type }),
     method: 'POST',
   });
 
@@ -180,16 +211,6 @@ export const publishOjtTestSet = (token: string, testSetId: number) =>
 
 export const fetchOjtResults = (token: string, batchId: number, signal?: AbortSignal) =>
   call<OjtResults>(`/api/ojt/admin/batches/${batchId}/results`, { ...admin(token), signal });
-
-export const createOjtQr = (
-  token: string,
-  batchId: number,
-  purpose: 'pre_test' | 'post_test' | 'feedback' | 'attendance',
-) =>
-  call<{ token: string; url: string }>(`/api/ojt/admin/batches/${batchId}/qr`, {
-    ...admin(token, { purpose }),
-    method: 'POST',
-  });
 
 /* --------------------------------------------------------------- participant side */
 

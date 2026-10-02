@@ -312,11 +312,32 @@ export const createJadwal = async (batchId, input) => {
     throw Object.assign(new Error('TANGGAL_DI_LUAR_RENTANG'), { code: 'TANGGAL_DI_LUAR_RENTANG' });
   }
 
+  /*
+    A material runs on exactly one day of a batch, and there is a unique index
+    enforcing it. Checked here as well so the user is told which material is
+    already scheduled and when, instead of being handed a constraint violation
+    that names a bare index.
+  */
   return transaction(async (request) => {
-    const materiId = await resolveMateri(request, input.namaMateri);
+    const resolvedMateriId = await resolveMateri(request, input.namaMateri);
+
+    const clash = await request()
+      .input('batchId', sql.Int, batchId)
+      .input('materiId', sql.Int, resolvedMateriId)
+      .query(`
+        SELECT tanggal FROM dbo.training_ojt_jadwal_materi
+        WHERE batch_id = @batchId AND materi_id = @materiId;`);
+    const existing = clash.recordset[0];
+    if (existing) {
+      throw Object.assign(
+        new Error(`MATERI_SUDAH_DIJADWALKAN:${toIso(existing.tanggal)}`),
+        { code: 'MATERI_SUDAH_DIJADWALKAN', tanggal: toIso(existing.tanggal) },
+      );
+    }
+
     const result = await request()
       .input('batchId', sql.Int, batchId)
-      .input('materiId', sql.Int, materiId)
+      .input('materiId', sql.Int, resolvedMateriId)
       .input('tanggal', sql.Date, input.tanggal)
       .input('jamMulai', sql.Time, toSqlTime(input.jamMulai))
       .input('jamSelesai', sql.Time, toSqlTime(input.jamSelesai))

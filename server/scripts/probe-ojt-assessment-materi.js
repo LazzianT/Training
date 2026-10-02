@@ -1,0 +1,396 @@
+import { connectDatabase, closeDatabase, query } from '../src/db/pool.js';
+import { signAccessToken } from '../src/modules/auth/token.service.js';
+import { createApp } from '../src/app.js';
+
+/*
+  Drives the whole per-material assessment chain against the real database, as a
+  participant would, then removes everything it created.
+
+  The case that matters most is the last one: two materials on the same day, one
+  participant, two attendance scans. Under the old UNIQUE(peserta, tanggal) that
+  second scan was refused with "already recorded", which is the whole reason
+  attendance had to be re-keyed. If that scan still fails, the migration did not
+  do what it claims.
+
+  Everything else existed to pass a schema test while the write path was broken
+  three times, so nothing here is taken on trust from the unit suite.
+*/
+let server;
+let baseUrl;
+
+const call = async (path, token, options = {}) => {
+  const response = await fetch(`${baseUrl}${path}`, {
+    ...options,
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${token}`,
+      ...(options.headers ?? {}),
+    },
+  });
+  const text = await response.text();
+  let body = text;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    /* not json */
+  }
+  return { status: response.status, body };
+};
+
+const check = (label, actual, expected) => {
+  const ok = actual === expected;
+  console.log(`  ${ok ? 'ok  ' : 'BAD '} ${label}: ${actual}${ok ? '' : ` (expected ${expected})`}`);
+  return ok;
+};
+
+let passed = 0;
+let failed = 0;
+const expect = (label, actual, expected) => {
+  if (check(label, actual, expected)) passed += 1;
+  else failed += 1;
+};
+
+const run = async () => {
+  server = await new Promise((resolve) => {
+    const instance = createApp().listen(0, '127.0.0.1', () => resolve(instance));
+  });
+  baseUrl = `http://127.0.0.1:${server.address().port}`;
+
+  await connectDatabase();
+
+  /*
+    Sweep before asserting anything. A previous run that failed partway leaves its
+    rows behind, and because attendance and results are queried per participant
+    and per batch rather than per run, those leftovers would show up as failures
+    of this run. Counts below are only meaningful against a clean slate.
+  */
+  const purgeProbes = async () => {
+    const targets = await query(
+      "SELECT id FROM dbo.training_ojt_materi WHERE nama LIKE 'PROBE-A-%' OR nama LIKE 'PROBE-B-%';",
+    );
+    const ids = targets.recordset.map((row) => row.id);
+    if (ids.length === 0) return 0;
+    for (const id of ids) {
+      /*
+        Child first, in foreign key order. Deleting answer_pg before
+        answer_grade_pg fails on the grade's reference, which is how an earlier
+        version of this script left rows behind and made itself look broken.
+      */
+      await query(
+        `DELETE g FROM dbo.training_ojt_answer_grade_pg g
+         JOIN dbo.training_ojt_answer_pg a ON a.id = g.answer_id
+         JOIN dbo.training_ojt_test_session s ON s.id = a.session_id
+         JOIN dbo.training_ojt_test_set t ON t.id = s.test_set_id WHERE t.materi_id = @id;`,
+        (r) => r.input('id', id),
+      );
+      await query(
+        `DELETE a FROM dbo.training_ojt_answer_pg a
+         JOIN dbo.training_ojt_test_session s ON s.id = a.session_id
+         JOIN dbo.training_ojt_test_set t ON t.id = s.test_set_id WHERE t.materi_id = @id;`,
+        (r) => r.input('id', id),
+      );
+      await query(
+        `DELETE g FROM dbo.training_ojt_answer_grade_essay g
+         JOIN dbo.training_ojt_answer_essay a ON a.id = g.answer_id
+         JOIN dbo.training_ojt_test_session s ON s.id = a.session_id
+         JOIN dbo.training_ojt_test_set t ON t.id = s.test_set_id WHERE t.materi_id = @id;`,
+        (r) => r.input('id', id),
+      );
+      await query(
+        `DELETE a FROM dbo.training_ojt_answer_essay a
+         JOIN dbo.training_ojt_test_session s ON s.id = a.session_id
+         JOIN dbo.training_ojt_test_set t ON t.id = s.test_set_id WHERE t.materi_id = @id;`,
+        (r) => r.input('id', id),
+      );
+      await query(
+        `DELETE s FROM dbo.training_ojt_test_session s
+         JOIN dbo.training_ojt_test_set t ON t.id = s.test_set_id WHERE t.materi_id = @id;`,
+        (r) => r.input('id', id),
+      );
+      await query(
+        `DELETE FROM dbo.training_ojt_question_pg WHERE test_set_id IN (SELECT id FROM dbo.training_ojt_test_set WHERE materi_id = @id);`,
+        (r) => r.input('id', id),
+      );
+      await query(
+        `DELETE FROM dbo.training_ojt_question_essay WHERE test_set_id IN (SELECT id FROM dbo.training_ojt_test_set WHERE materi_id = @id);`,
+        (r) => r.input('id', id),
+      );
+      await query('DELETE FROM dbo.training_ojt_test_set WHERE materi_id = @id;', (r) => r.input('id', id));
+      await query('DELETE FROM dbo.training_ojt_feedback WHERE materi_id = @id;', (r) => r.input('id', id));
+      await query('DELETE FROM dbo.training_ojt_absensi WHERE materi_id = @id;', (r) => r.input('id', id));
+      await query('DELETE FROM dbo.training_ojt_qr_access WHERE materi_id = @id;', (r) => r.input('id', id));
+      await query('DELETE FROM dbo.training_ojt_jadwal_materi WHERE materi_id = @id;', (r) => r.input('id', id));
+      await query('DELETE FROM dbo.training_ojt_materi WHERE id = @id;', (r) => r.input('id', id));
+    }
+    return ids.length;
+  };
+
+  const swept = await purgeProbes();
+  if (swept > 0) console.log(`swept ${swept} leftover probe material(s) from an earlier run\n`);
+  const hr = await query(
+    "SELECT TOP 1 e.NIP FROM dbo.hris_Employee e WHERE e.is_Active = '1' AND LTRIM(RTRIM(e.DepartID)) = '0300' ORDER BY e.NIP;",
+  );
+  const nip = hr.recordset[0]?.NIP ?? '0001';
+  const admin = signAccessToken({ type: 'access', sub: nip, role: 'employee', departId: '0300' });
+
+  const batches = await call('/api/ojt/admin/batches', admin);
+  const batchId = batches.body[0]?.id;
+  if (!batchId) {
+    console.log('no batch to probe against');
+    await closeDatabase();
+    server.close();
+    return;
+  }
+  const detail = await call(`/api/ojt/admin/batches/${batchId}`, admin);
+  const tanggal = detail.body.tanggalMulai;
+  console.log(`batch #${batchId}, window ${detail.body.tanggalMulai} .. ${detail.body.tanggalSelesai}\n`);
+
+  // A second day is needed for two materials, so widen nothing: both go on day one
+  // and attendance has to accept both.
+  const stamp = Date.now();
+  const materiA = `PROBE-A-${stamp}`;
+  const materiB = `PROBE-B-${stamp}`;
+
+  console.log('schedule two materials on the same day');
+  const jadwalA = await call(`/api/ojt/admin/batches/${batchId}/jadwal`, admin, {
+    method: 'POST',
+    body: JSON.stringify({ tanggal, namaMateri: materiA }),
+  });
+  expect('schedule material A', jadwalA.status, 201);
+  const jadwalB = await call(`/api/ojt/admin/batches/${batchId}/jadwal`, admin, {
+    method: 'POST',
+    body: JSON.stringify({ tanggal, namaMateri: materiB }),
+  });
+  expect('schedule material B', jadwalB.status, 201);
+
+  console.log('\nrefuse the same material twice in one batch');
+  const dupe = await call(`/api/ojt/admin/batches/${batchId}/jadwal`, admin, {
+    method: 'POST',
+    body: JSON.stringify({ tanggal, namaMateri: materiA }),
+  });
+  expect('duplicate schedule', dupe.status, 409);
+  expect('duplicate code', dupe.body?.error?.code, 'MATERI_SUDAH_DIJADWALKAN');
+
+  const materiAId = jadwalA.body ? detail.body.jadwal.find((j) => j.materiNama === materiA)?.materiId : null;
+  const jadwal = await call(`/api/ojt/admin/batches/${batchId}`, admin);
+  const idA = jadwal.body.jadwal.find((j) => j.materiNama === materiA)?.materiId;
+  const idB = jadwal.body.jadwal.find((j) => j.materiNama === materiB)?.materiId;
+  void materiAId;
+  expect('material A resolved', typeof idA, 'number');
+  expect('material B resolved', typeof idB, 'number');
+
+  console.log('\nreadiness before any questions exist');
+  const early = await call(`/api/ojt/admin/batches/${batchId}/assessment`, admin);
+  expect('summary status', early.status, 200);
+  const earlyA = early.body.find((row) => row.materiId === idA);
+  expect('A has no bank', earlyA?.testSetId, null);
+  expect('A not test ready', earlyA?.siapUntukUji, false);
+
+  console.log('\nbuild and publish one bank');
+  const ensure = await call(`/api/ojt/admin/materi/${idA}/test-set`, admin, { method: 'POST' });
+  expect('ensure creates bank', ensure.status, 201);
+  expect('bank flagged created', ensure.body.created, true);
+  const setId = ensure.body.id;
+  const ensureAgain = await call(`/api/ojt/admin/materi/${idA}/test-set`, admin, { method: 'POST' });
+  expect('ensure reuses bank', ensureAgain.status, 200);
+  expect('same bank id', ensureAgain.body.id, setId);
+
+  const publishEmpty = await call(`/api/ojt/admin/test-sets/${setId}/publish`, admin, { method: 'POST' });
+  expect('publish with no questions refused', publishEmpty.status, 409);
+
+  const q1 = await call(`/api/ojt/admin/test-sets/${setId}/questions`, admin, {
+    method: 'POST',
+    body: JSON.stringify({
+      type: 'pg',
+      text: 'Apa yang pertama dilakukan saat menemukan api terbakar?',
+      a: 'MeneleponIntroduction',
+      b: 'Mematikan sumber api',
+      c: 'Menyembunyikan api',
+      d: 'Menunggu所有人',
+      correct: 'B',
+      point: 10,
+    }),
+  });
+  expect('add question', q1.status, 201);
+
+  const publish = await call(`/api/ojt/admin/test-sets/${setId}/publish`, admin, { method: 'POST' });
+  expect('publish', publish.status, 200);
+  const afterPublish = await call(`/api/ojt/admin/materi/${idA}/test-set`, admin);
+  expect('question count locked in', afterPublish.body.questionCount, 1);
+
+  const ready = await call(`/api/ojt/admin/batches/${batchId}/assessment`, admin);
+  const readyA = ready.body.find((row) => row.materiId === idA);
+  expect('A now test ready', readyA?.siapUntukUji, true);
+  const readyB = ready.body.find((row) => row.materiId === idB);
+  expect('B still not test ready', readyB?.siapUntukUji, false);
+
+  console.log('\nQR per material, and only for scheduled materials');
+  const qrPre = await call(`/api/ojt/admin/batches/${batchId}/materi/${idA}/qr`, admin, {
+    method: 'POST',
+    body: JSON.stringify({ purpose: 'pre_test' }),
+  });
+  expect('pre-test QR', qrPre.status, 201);
+  const qrPreAgain = await call(`/api/ojt/admin/batches/${batchId}/materi/${idA}/qr`, admin, {
+    method: 'POST',
+    body: JSON.stringify({ purpose: 'pre_test' }),
+  });
+  expect('second pre-test QR issued', qrPreAgain.status, 201);
+  const revoked = await query(
+    'SELECT COUNT(*) AS n FROM dbo.training_ojt_qr_access WHERE batch_id = @b AND materi_id = @m AND purpose = @p AND revoked_at IS NULL;',
+    (r) => r.input('b', batchId).input('m', idA).input('p', 'pre_test'),
+  );
+  expect('only one live pre-test QR', Number(revoked.recordset[0].n), 1);
+
+  const qrWrongMateri = await call(`/api/ojt/admin/batches/${batchId}/materi/999999/qr`, admin, {
+    method: 'POST',
+    body: JSON.stringify({ purpose: 'pre_test' }),
+  });
+  expect('QR for unscheduled material', qrWrongMateri.status, 400);
+  expect('QR rejection code', qrWrongMateri.body?.error?.code, 'MATERI_TIDAK_DIJADWALKAN');
+
+  console.log('\nparticipant flow: open, answer pre-test');
+  const access = await call(`/api/ojt/access/${qrPreAgain.body.token}`, {});
+  expect('access payload', access.status, 200);
+  expect('access names the material', access.body.materiNama, materiA);
+  expect('access carries the date', access.body.materiTanggal, tanggal);
+
+  const peserta = detail.body.peserta[0];
+  if (!peserta) {
+    console.log('\nno participant in this batch, skipping the participant half');
+  } else {
+    const opened = await call(`/api/ojt/access/${qrPreAgain.body.token}/open`, {}, {
+      method: 'POST',
+      body: JSON.stringify({ kodePeserta: peserta.kodePeserta }),
+    });
+    expect('open pre-test', opened.status, 200);
+    expect('questions returned', Array.isArray(opened.body.questions) && opened.body.questions.length, 1);
+    expect('phase is pre', opened.body.phase, 'pre');
+
+    const submitted = await call(`/api/ojt/access/${qrPreAgain.body.token}/submit`, {}, {
+      method: 'POST',
+      body: JSON.stringify({
+        kodePeserta: peserta.kodePeserta,
+        sessionId: opened.body.sessionId,
+        answers: [{ questionId: opened.body.questions[0].id, answer: 'B' }],
+      }),
+    });
+    expect('submit pre-test', submitted.status, 200);
+
+    const locked = await call(`/api/ojt/access/${qrPreAgain.body.token}/open`, {}, {
+      method: 'POST',
+      body: JSON.stringify({ kodePeserta: peserta.kodePeserta }),
+    });
+    expect('locked pre-test refuses re-entry', locked.status, 409);
+    expect('re-entry code', locked.body?.error?.code, 'ALREADY_SUBMITTED');
+
+    console.log('\nfeedback is scoped to the material');
+    const qrFeedbackA = await call(`/api/ojt/admin/batches/${batchId}/materi/${idA}/qr`, admin, {
+      method: 'POST',
+      body: JSON.stringify({ purpose: 'feedback' }),
+    });
+    expect('feedback QR for A', qrFeedbackA.status, 201);
+    const fbA = await call(`/api/ojt/access/${qrFeedbackA.body.token}/feedback`, {}, {
+      method: 'POST',
+      body: JSON.stringify({
+        kodePeserta: peserta.kodePeserta,
+        entries: [{ aspect: 'Penjelasan', score: 4, comment: 'jelas' }],
+      }),
+    });
+    expect('submit feedback for A', fbA.status, 200);
+    const fbRows = await query(
+      'SELECT COUNT(*) AS n FROM dbo.training_ojt_feedback WHERE materi_id = @m;',
+      (r) => r.input('m', idA),
+    );
+    expect('feedback rows for A', Number(fbRows.recordset[0].n), 1);
+    const fbOther = await query(
+      'SELECT COUNT(*) AS n FROM dbo.training_ojt_feedback WHERE materi_id = @m;',
+      (r) => r.input('m', idB),
+    );
+    expect('no feedback leaked to B', Number(fbOther.recordset[0].n), 0);
+
+    console.log('\nattendance: two materials, same participant, same day');
+    const qrAbsA = await call(`/api/ojt/admin/batches/${batchId}/materi/${idA}/qr`, admin, {
+      method: 'POST',
+      body: JSON.stringify({ purpose: 'attendance' }),
+    });
+    expect('attendance QR for A', qrAbsA.status, 201);
+    const absA = await call(`/api/ojt/access/${qrAbsA.body.token}/open`, {}, {
+      method: 'POST',
+      body: JSON.stringify({ kodePeserta: peserta.kodePeserta, signatureData: 'sig-a' }),
+    });
+    expect('attendance for A recorded', absA.status, 200);
+    expect('recorded against the material date', absA.body.tanggal, tanggal);
+
+    const absA2 = await call(`/api/ojt/access/${qrAbsA.body.token}/open`, {}, {
+      method: 'POST',
+      body: JSON.stringify({ kodePeserta: peserta.kodePeserta, signatureData: 'sig-a-again' }),
+    });
+    expect('rescan of A refused', absA2.status, 409);
+
+    const qrAbsB = await call(`/api/ojt/admin/batches/${batchId}/materi/${idB}/qr`, admin, {
+      method: 'POST',
+      body: JSON.stringify({ purpose: 'attendance' }),
+    });
+    expect('attendance QR for B', qrAbsB.status, 201);
+    const absB = await call(`/api/ojt/access/${qrAbsB.body.token}/open`, {}, {
+      method: 'POST',
+      body: JSON.stringify({ kodePeserta: peserta.kodePeserta, signatureData: 'sig-b' }),
+    });
+    /*
+      The assertion that justifies the migration. Under UNIQUE(peserta, tanggal)
+      this was ALREADY_SUBMITTED and per-material attendance could not exist.
+    */
+    expect('attendance for B recorded on the same day', absB.status, 200);
+    expect('B names its own material', absB.body.materiNama, materiB);
+
+    const absRows = await query(
+      'SELECT COUNT(*) AS n FROM dbo.training_ojt_absensi WHERE peserta_id = @p AND tanggal = @t;',
+      (r) => r.input('p', peserta.id).input('t', tanggal),
+    );
+    expect('two attendance rows for one participant one day', Number(absRows.recordset[0].n), 2);
+
+    console.log('\nresults are per material');
+    const results = await call(`/api/ojt/admin/batches/${batchId}/results`, admin);
+    expect('results status', results.status, 200);
+    const scored = results.body.submissions.filter((s) => s.phase === 'pre');
+    expect('one pre-test submission', scored.length, 1);
+    expect('submission names the material', scored[0]?.materiNama, materiA);
+    expect('full marks', scored[0]?.percentage, 100);
+    /*
+      The breakdown has one row per material scheduled in the batch, which
+      includes whatever else this batch already had on the calendar. Asserting a
+      total would couple the probe to the batch's real contents, so check that
+      both probe materials are named instead.
+    */
+    const breakdownNames = results.body.attendanceByMateri.map((row) => row.materiNama);
+    expect('breakdown includes A', breakdownNames.includes(materiA), true);
+    expect('breakdown includes B', breakdownNames.includes(materiB), true);
+    const rowB = results.body.attendanceByMateri.find((row) => row.materiNama === materiB);
+    expect('B attendance counted', rowB?.hadir, 1);
+    const rowA = results.body.attendanceByMateri.find((row) => row.materiNama === materiA);
+    expect('A attendance counted', rowA?.hadir, 1);
+  }
+
+  console.log('\ncleanup');
+  await purgeProbes();
+
+  const leftovers = await query(
+    `SELECT
+       (SELECT COUNT(*) FROM dbo.training_ojt_materi WHERE nama LIKE 'PROBE-%') AS m,
+       (SELECT COUNT(*) FROM dbo.training_ojt_jadwal_materi WHERE materi_id NOT IN (SELECT id FROM dbo.training_ojt_materi)) AS orphan_jadwal;`,
+  );
+  console.log(`  probe materi left: ${leftovers.recordset[0].m}`);
+  console.log(`  orphan jadwal left: ${leftovers.recordset[0].orphan_jadwal}`);
+
+  console.log(`\n${passed} passed, ${failed} failed`);
+  await closeDatabase();
+  server.close();
+  if (failed > 0) process.exit(1);
+};
+
+run().catch(async (error) => {
+  console.error('\nFAILED:', error.message);
+  server?.close();
+  await closeDatabase().catch(() => undefined);
+  process.exit(1);
+});

@@ -199,6 +199,46 @@ export type OjtMateriMaster = OjtMateri & {
   progresCount: number;
 };
 
+/**
+ * Per material readiness for one batch.
+ *
+ * The point of `siapUntukUji` is that a pre-test QR can be printed and handed out
+ * with no questions behind it, and nobody finds out until a participant scans
+ * it. The screen checks this before showing the code.
+ */
+export type OjtAssessmentSummary = {
+  jadwalId: number;
+  materiId: number;
+  materiKode: string;
+  materiNama: string;
+  /** YYYY-MM-DD, the day this material runs in this batch. */
+  tanggal: string;
+  jamMulai: string | null;
+  jamSelesai: string | null;
+  pengisiNip: string | null;
+  catatan: string | null;
+  pesertaCount: number;
+  testSetId: number | null;
+  testSetStatus: 'draft' | 'published' | null;
+  questionCount: number;
+  publishedAt: string | null;
+  /** Locked sessions across this batch's participants, both phases. */
+  sesiTerkunci: number;
+  /** Published with at least one question, so a QR would open a real form. */
+  siapUntukUji: boolean;
+};
+
+/** One question bank per material, shared by every batch that teaches it. */
+export type OjtMateriTestSet = {
+  id: number;
+  materiId: number;
+  status: 'draft' | 'published' | 'closed';
+  questionCount: number;
+  publishedAt: string | null;
+  /** Only present on the ensure call: true when this call created the bank. */
+  created?: boolean;
+};
+
 export type CreateOjtMateriRequest = {
   nama: string;
   deskripsi?: string | null;
@@ -316,16 +356,6 @@ export type SetOjtAbsensiRequest = {
   entries: { pesertaId: number; tanggal: string; status: OjtAttendanceStatus; catatan?: string | null }[];
 };
 
-/** OJT keeps its own assessment tables, so its shapes are their own too. */
-export type OjtTestSet = {
-  id: number;
-  type: 'pg' | 'essay' | 'mixed';
-  date: string;
-  questionCount: number;
-  status: 'draft' | 'published' | 'closed';
-  publishedAt: string | null;
-};
-
 export type OjtSavedQuestion = { id: number; type: 'pg' | 'essay'; number: number; text: string };
 
 export type OjtQuestionInput = {
@@ -343,16 +373,35 @@ export type OjtQuestionInput = {
 };
 
 export type OjtResults = {
+  /** One row per participant per material per phase. */
   submissions: {
     phase: 'pre' | 'post';
     kodePeserta: string;
     name: string;
     status: string;
+    materiId: number;
+    materiKode: string;
+    materiNama: string;
     score: number;
     totalScore: number;
     percentage: number | null;
   }[];
-  attendance: { kodePeserta: string; name: string; hariHadir: number }[];
+  attendance: {
+    kodePeserta: string;
+    name: string;
+    /** Materials attended. Attendance is recorded per material, not per day. */
+    materiHadir: number;
+    /** Distinct days on which they attended something. */
+    hariHadir: number;
+  }[];
+  /** Per material, how many of the batch's participants showed. */
+  attendanceByMateri: {
+    materiId: number;
+    materiKode: string;
+    materiNama: string;
+    tanggal: string;
+    hadir: number;
+  }[];
 };
 
 /** The unauthenticated participant payload behind an OJT QR. */
@@ -360,6 +409,12 @@ export type OjtAccess = {
   batchId: number;
   purpose: 'pre_test' | 'post_test' | 'feedback' | 'attendance';
   title: string;
+  /** Which material of the batch this code assesses. Shown before the code is asked. */
+  materiId: number;
+  materiKode: string;
+  materiNama: string;
+  /** The day the material runs, or null when it is not on the schedule. */
+  materiTanggal: string | null;
   lokasi: string | null;
   tanggalMulai: string;
   tanggalSelesai: string;
