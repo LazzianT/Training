@@ -542,21 +542,30 @@ const submitPeserta = async () => {
       {results && results.submissions.length > 0 && (
         <Panel
           title="Hasil Post-test"
-          description="Nilai akhir peserta pada batch ini, beserta jumlah hari hadir."
+          description="Nilai post-test per materi, beserta jumlah materi yang diikuti peserta."
           className="enter-section mt-8"
         >
           <ul className="divide-y divide-slate-100">
+            {/*
+              Keyed on participant and material, not participant alone. A batch
+              teaches several materials now, so one participant has one post-test
+              score per material and keying on the code alone collapsed them onto
+              a single arbitrary row.
+            */}
             {results.submissions
               .filter((item) => item.phase === 'post')
               .map((item) => {
                 const hadir = results.attendance.find((row) => row.kodePeserta === item.kodePeserta);
                 return (
-                  <li key={item.kodePeserta} className="flex items-center justify-between gap-3 px-5 py-3">
+                  <li
+                    key={`${item.kodePeserta}-${item.materiId}`}
+                    className="flex items-center justify-between gap-3 px-5 py-3"
+                  >
                     <span className="min-w-0">
                       <span className="block truncate text-sm text-slate-900">{item.name}</span>
                       <span className="block text-xs text-slate-500 tabular-nums">
-                        {item.kodePeserta}
-                        {hadir ? ` · ${hadir.hariHadir} hari hadir` : ''}
+                        {item.kodePeserta} · {item.materiNama}
+                        {hadir ? ` · ${hadir.materiHadir} materi diikuti` : ''}
                       </span>
                     </span>
                     <span className="shrink-0 text-sm font-semibold text-slate-900 tabular-nums">
@@ -565,6 +574,33 @@ const submitPeserta = async () => {
                   </li>
                 );
               })}
+          </ul>
+        </Panel>
+      )}
+
+      {results && results.attendanceByMateri.length > 0 && (
+        <Panel
+          title="Kehadiran per Materi"
+          description="Berapa peserta dari batch ini yang hadir pada hari materi tersebut."
+          className="enter-section mt-8"
+        >
+          <ul className="divide-y divide-slate-100">
+            {results.attendanceByMateri.map((row) => (
+              <li
+                key={row.materiId}
+                className="flex items-center justify-between gap-3 px-5 py-3"
+              >
+                <span className="min-w-0">
+                  <span className="block truncate text-sm text-slate-900">{row.materiNama}</span>
+                  <span className="block text-xs text-slate-500">
+                    {shortDate(row.tanggal)} · {row.materiKode}
+                  </span>
+                </span>
+                <span className="shrink-0 text-sm font-semibold text-slate-900 tabular-nums">
+                  {row.hadir}/{batch.peserta.length}
+                </span>
+              </li>
+            ))}
           </ul>
         </Panel>
       )}
