@@ -410,13 +410,15 @@ export type OjtResults = {
     /** Distinct days on which they attended something. */
     hariHadir: number;
   }[];
-  /** Per material, how many of the batch's participants showed. */
+  /** Per material, who attended and who did not. */
   attendanceByMateri: {
     materiId: number;
     materiKode: string;
     materiNama: string;
     tanggal: string;
+    /** Count of participants marked hadir, for the collapsed row. */
     hadir: number;
+    peserta: { kodePeserta: string; namaLengkap: string; hadir: boolean }[];
   }[];
 };
 

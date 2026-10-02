@@ -434,6 +434,24 @@ const run = async () => {
     expect('B attendance counted', rowB?.hadir, 1);
     const rowA = results.body.attendanceByMateri.find((row) => row.materiNama === materiA);
     expect('A attendance counted', rowA?.hadir, 1);
+
+    /*
+      The closed row shows a count; the detail is who. A count nobody can act on
+      is what the modal exists to replace, so the list has to cover everyone, not
+      just the ones who showed.
+    */
+    expect('attendance detail covers the roster', rowA?.peserta.length, detail.body.peserta.length);
+    const came = rowA.peserta.filter((row) => row.hadir);
+    const missed = rowA.peserta.filter((row) => !row.hadir);
+    expect('one participant came', came.length, 1);
+    expect('the participant who came is me', came[0]?.kodePeserta, peserta.kodePeserta);
+    expect('the rest are listed as missing', missed.length, detail.body.peserta.length - 1);
+    expect(
+      'nobody is both present and absent',
+      rowA.peserta.every((row) => typeof row.hadir === 'boolean'),
+      true,
+    );
+    expect('detail names every participant', rowA.peserta.every((row) => Boolean(row.namaLengkap)), true);
   }
 
   console.log('\ncleanup');

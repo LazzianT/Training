@@ -81,6 +81,7 @@ export const OjtBatchPage = () => {
   const [results, setResults] = useState<OjtResults | null>(null);
   const [assessment, setAssessment] = useState<OjtAssessmentSummary[]>([]);
   const [openMateri, setOpenMateri] = useState<number | null>(null);
+  const [openAttendance, setOpenAttendance] = useState<number | null>(null);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [addingPeserta, setAddingPeserta] = useState(false);
@@ -636,29 +637,137 @@ const submitPeserta = async () => {
       {results && results.attendanceByMateri.length > 0 && (
         <Panel
           title="Kehadiran per Materi"
-          description="Berapa peserta dari batch ini yang hadir pada hari materi tersebut."
+          description="Klik materi untuk melihat siapa saja yang hadir dan yang belum."
           className="enter-section mt-8"
         >
           <ul className="divide-y divide-slate-100">
             {results.attendanceByMateri.map((row) => (
-              <li
-                key={row.materiId}
-                className="flex items-center justify-between gap-3 px-5 py-3"
-              >
-                <span className="min-w-0">
-                  <span className="block truncate text-sm text-slate-900">{row.materiNama}</span>
-                  <span className="block text-xs text-slate-500">
-                    {shortDate(row.tanggal)} · {row.materiKode}
+              <li key={row.materiId}>
+                <button
+                  type="button"
+                  onClick={() => setOpenAttendance(row.materiId)}
+                  className="flex w-full items-center justify-between gap-3 px-5 py-3 text-left outline-none transition duration-150 hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-inset"
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm text-slate-900">{row.materiNama}</span>
+                    <span className="block text-xs text-slate-500">
+                      {shortDate(row.tanggal)} · {row.materiKode}
+                    </span>
                   </span>
-                </span>
-                <span className="shrink-0 text-sm font-semibold text-slate-900 tabular-nums">
-                  {row.hadir}/{batch.peserta.length}
-                </span>
+                  <span className="flex shrink-0 items-center gap-3">
+                    {/*
+                      The shortfall is called out in orange. "3/4" makes the reader
+                      do the subtraction before they know whether anything is
+                      wrong; the count of who is missing is the fact that matters.
+                    */}
+                    {row.peserta.length - row.hadir > 0 && (
+                      <span className="text-xs font-semibold text-amber-700">
+                        {row.peserta.length - row.hadir} belum
+                      </span>
+                    )}
+                    <span className="text-sm font-semibold text-slate-900 tabular-nums">
+                      {row.hadir}/{row.peserta.length}
+                    </span>
+                  </span>
+                </button>
               </li>
             ))}
           </ul>
         </Panel>
       )}
+
+      {/*
+        Named from the same array the row was rendered from, so the dialog cannot
+        show a different material than the one that was clicked.
+      */}
+      <AttendanceDetail
+        entry={
+          results?.attendanceByMateri.find((row) => row.materiId === openAttendance) ?? null
+        }
+        onClose={() => setOpenAttendance(null)}
+      />
     </div>
+  );
+};
+
+/**
+ * Who attended one material and who did not.
+ *
+ * Both lists are shown, and the people who are missing come first, because the
+ * name of the person who was not there is the only part anybody acts on.
+ */
+const AttendanceDetail = ({
+  entry,
+  onClose,
+}: {
+  entry: OjtResults['attendanceByMateri'][number] | null;
+  onClose: () => void;
+}) => {
+  if (!entry) return null;
+
+  const belum = entry.peserta.filter((person) => !person.hadir);
+  const hadir = entry.peserta.filter((person) => person.hadir);
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={entry.materiNama}
+      description={`${entry.materiKode} · ${shortDate(entry.tanggal)} · ${entry.hadir}/${entry.peserta.length} hadir`}
+      size="md"
+      footer={
+        <Button type="button" variant="secondary" onClick={onClose}>
+          Tutup
+        </Button>
+      }
+    >
+      <div className="space-y-5 p-5">
+        {entry.peserta.length === 0 && (
+          <p className="text-sm text-slate-500">Belum ada peserta di batch ini.</p>
+        )}
+
+        {belum.length > 0 && (
+          <section>
+            <p className="text-xs font-semibold tracking-[0.1em] text-amber-700 uppercase">
+              Belum hadir · {belum.length}
+            </p>
+            <ul className="mt-2 divide-y divide-slate-100 border border-slate-200">
+              {belum.map((person) => (
+                <li
+                  key={person.kodePeserta}
+                  className="flex items-center justify-between gap-3 px-3 py-2"
+                >
+                  <span className="min-w-0 truncate text-sm text-slate-900">{person.namaLengkap}</span>
+                  <span className="shrink-0 text-xs text-slate-500 tabular-nums">
+                    {person.kodePeserta}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {hadir.length > 0 && (
+          <section>
+            <p className="text-xs font-semibold tracking-[0.1em] text-slate-500 uppercase">
+              Hadir · {hadir.length}
+            </p>
+            <ul className="mt-2 divide-y divide-slate-100 border border-slate-200">
+              {hadir.map((person) => (
+                <li
+                  key={person.kodePeserta}
+                  className="flex items-center justify-between gap-3 px-3 py-2"
+                >
+                  <span className="min-w-0 truncate text-sm text-slate-900">{person.namaLengkap}</span>
+                  <span className="shrink-0 text-xs text-slate-500 tabular-nums">
+                    {person.kodePeserta}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+      </div>
+    </Modal>
   );
 };

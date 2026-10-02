@@ -567,7 +567,7 @@ export const recordAttendance = async (batchId, materiId, pesertaId, signatureDa
  * zero is a result, and reporting it for an unanswered paper would be wrong.
  */
 export const getResults = async (batchId) => {
-  const [peserta, jadwal, sessions, perPeserta, perMateri] = await Promise.all([
+  const [peserta, jadwal, sessions, attendanceRows, perPeserta, perMateri] = await Promise.all([
     query(
       `SELECT id, kode_peserta, nama_lengkap FROM dbo.training_ojt_peserta
        WHERE batch_id = @batchId AND aktif = 1 ORDER BY nama_lengkap, kode_peserta;`,
@@ -591,6 +591,12 @@ export const getResults = async (batchId) => {
        LEFT JOIN dbo.training_ojt_answer_grade_pg g ON g.answer_id = a.id
        WHERE s.peserta_id IN (SELECT id FROM dbo.training_ojt_peserta WHERE batch_id = @batchId AND aktif = 1)
        GROUP BY s.peserta_id, ts.materi_id, s.phase, s.status;`,
+      (request) => request.input('batchId', sql.Int, batchId)),
+    query(
+      `SELECT a.materi_id, a.peserta_id, a.status
+       FROM dbo.training_ojt_absensi a
+       JOIN dbo.training_ojt_peserta p ON p.id = a.peserta_id
+       WHERE p.batch_id = @batchId AND p.aktif = 1;`,
       (request) => request.input('batchId', sql.Int, batchId)),
     query(
       `SELECT p.kode_peserta, p.nama_lengkap,
@@ -636,6 +642,18 @@ export const getResults = async (batchId) => {
     };
   };
 
+  /*
+    Attendance is looked up per (material, participant) rather than only counted,
+    because a bare "3 of 4" is a number nobody can act on. Who is missing is the
+    question, and it is the same reasoning that made the score grid start from the
+    roster instead of the sessions.
+  */
+  const attended = new Set(
+    attendanceRows.recordset
+      .filter((row) => row.status === 'hadir')
+      .map((row) => `${row.materi_id}|${row.peserta_id}`),
+  );
+
   return {
     byMateri: jadwal.recordset.map((materi) => ({
       materiId: materi.materi_id,
@@ -662,6 +680,15 @@ export const getResults = async (batchId) => {
       materiNama: row.materi_nama,
       tanggal: toIso(row.tanggal),
       hadir: Number(row.hadir),
+      /**
+       * Every participant, so the row can be opened into a list of who came and
+       * who did not. `hadir` stays as the count the closed row shows.
+       */
+      peserta: peserta.recordset.map((person) => ({
+        kodePeserta: person.kode_peserta,
+        namaLengkap: person.nama_lengkap,
+        hadir: attended.has(`${row.materi_id}|${person.id}`),
+      })),
     })),
   };
 };
