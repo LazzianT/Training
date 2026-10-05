@@ -18,8 +18,6 @@ import { Modal } from '../components/Modal.js';
 import { CopyButton } from '../components/Toast.js';
 import { shortDate } from '../lib/date.js';
 
-const publicAppUrl = (import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin).replace(/\/$/, '');
-
 const thClass = 'px-3 py-2.5 text-left text-[11px] font-semibold tracking-[0.1em] text-slate-500 uppercase';
 const thRightClass = `${thClass} text-right`;
 
@@ -161,7 +159,13 @@ export const MyEvents = () => {
     if (!session) return;
     try {
       const item = await createEventQr(session.accessToken, eventId, purpose);
-      setQr({ eventId, purpose, url: `${publicAppUrl}${item.url}` });
+        /*
+          The server hands back an absolute URL, built from the address this
+          browser is on. Prefixing it with the origin again produced a link with
+          two schemes in it, which is what the old client-side base was for and
+          what made it wrong once the server started sending absolute links.
+        */
+        setQr({ eventId, purpose, url: item.url });
       setMessage(`QR ${purpose} dibuat.`);
     } catch (error) {
       setMessage(error instanceof ApiRequestError ? error.message : 'QR gagal dibuat.');

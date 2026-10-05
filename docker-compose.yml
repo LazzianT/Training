@@ -20,6 +20,13 @@ services:
       DB_ENCRYPT: ${DB_ENCRYPT:-false}
       DB_TRUST_SERVER_CERTIFICATE: ${DB_TRUST_SERVER_CERTIFICATE:-true}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3006}
+      # Optional, and normally left empty. QR links take their address from the
+      # request that issues them, which behind this nginx is the host the browser
+      # typed, so a deployment on any address hands out codes for that address with
+      # no configuration. Set this only when participants reach the app at a
+      # different address than the admin does - an internal hostname on one side,
+      # a public one on the other.
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-}
       # Fail at deploy time, not at container start. Without the ":?" guard an
       # unset variable is substituted with an empty string, which reaches the
       # app as "" rather than undefined, so the Zod default never applies and

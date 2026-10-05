@@ -11,7 +11,7 @@ import {
   updateJadwalBody,
 } from '../src/modules/ojt/ojt.schema.js';
 import { toSqlTime } from '../src/modules/ojt/ojt.repository.js';
-import { config, publicAppUrl } from '../src/config.js';
+import { config, originFromRequest, publicAppUrl } from '../src/config.js';
 
 let server;
 let baseUrl;
@@ -274,6 +274,48 @@ describe('public app url', () => {
     const configured = config.PUBLIC_APP_URL.trim();
     expect(configured !== '' || origins[0].length > 0).toBe(true);
     expect(publicAppUrl()).not.toContain(',');
+  });
+});
+
+/*
+  The container has no PUBLIC_APP_URL configured, so the address comes off the
+  request. That path is what decides whether a deployed instance hands out codes
+  for its real address or for localhost, and it cannot be exercised through
+  publicAppUrl here because the local .env sets the override.
+*/
+describe('public app url from the request', () => {
+  const fakeRequest = ({ host, protocol = 'http', forwardedProto }) => ({
+    protocol,
+    get: (name) =>
+      name === 'host' ? host : name === 'x-forwarded-proto' ? forwardedProto : undefined,
+  });
+
+  it('uses the host the browser typed', () => {
+    expect(originFromRequest(fakeRequest({ host: 'training.ptbmc.co.id' }))).toBe(
+      'http://training.ptbmc.co.id',
+    );
+  });
+
+  it('keeps the port, because a deployment on :3006 is not the same address', () => {
+    expect(originFromRequest(fakeRequest({ host: '10.103.90.5:3006' }))).toBe('http://10.103.90.5:3006');
+  });
+
+  it('honours a TLS terminator in front of it', () => {
+    // The hop to us is plain http when a proxy terminates TLS, so req.protocol
+    // alone would hand out an http link for an https deployment.
+    const request = fakeRequest({ host: 'training.ptbmc.co.id', protocol: 'http', forwardedProto: 'https' });
+    expect(originFromRequest(request)).toBe('https://training.ptbmc.co.id');
+  });
+
+  it('takes the first value when several proxies append to the header', () => {
+    const request = fakeRequest({ host: 'a.example', forwardedProto: 'https, http' });
+    expect(originFromRequest(request)).toBe('https://a.example');
+  });
+
+  it('answers null rather than inventing a host', () => {
+    // Falling through to the CORS origin is better than guessing a hostname.
+    expect(originFromRequest(fakeRequest({ host: undefined }))).toBeNull();
+    expect(originFromRequest(undefined)).toBeNull();
   });
 });
 /*

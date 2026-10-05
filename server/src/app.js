@@ -17,6 +17,12 @@ export const createApp = () => {
   const app = express();
   const allowedOrigins = config.CORS_ORIGIN.split(',').map((value) => value.trim()).filter(Boolean);
 
+  /*
+    Behind nginx, which sets Host and may terminate TLS. Without this,
+    req.protocol reports the hop to us rather than the one the browser used, and
+    a QR link comes out with the wrong scheme.
+  */
+  app.set('trust proxy', true);
   app.disable('x-powered-by');
   app.use(helmet());
   app.use(cors({ origin: allowedOrigins }));

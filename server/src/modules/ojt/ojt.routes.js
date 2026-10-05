@@ -698,7 +698,7 @@ ojtRouter.post('/batches/:id/materi/:materiId/qr', async (request, response, nex
           what the copy button puts on the clipboard. A relative path scans into
           a dead address.
         */
-        url: `${publicAppUrl()}/ojt/access/${token}`,
+        url: `${publicAppUrl(request)}/ojt/access/${token}`,
         materiId: materiId.data,
         purpose: purpose.data,
       });
