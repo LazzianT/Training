@@ -88,6 +88,31 @@ export const resolveQrAccess = async (token) => {
   return recordset[0] ?? null;
 };
 
+/**
+ * The participants of one event, for the name picker on the form.
+ *
+ * Only the NIP and the name. This is the one list a QR holder can read without an
+ * account, and it is scoped to the event the code belongs to rather than the whole
+ * directory: a participant needs to find themselves, not to browse the company.
+ *
+ * The picker exists because a NIP is something a person has to still be holding.
+ * HR issues it once, and by the day of the training it is a number nobody
+ * remembers, which turns a two minute form into a trip to the HR desk.
+ */
+export const listEventParticipants = async (eventId) => {
+  const { recordset } = await query(
+    `SELECT participant_nip, participant_name
+     FROM dbo.training_peserta_acara
+     WHERE event_id = @eventId
+     ORDER BY participant_name, participant_nip;`,
+    (request) => request.input('eventId', sql.Int, eventId),
+  );
+  return recordset.map((row) => ({
+    nip: row.participant_nip,
+    name: row.participant_name ?? row.participant_nip,
+  }));
+};
+
 export const listTestSets = async (eventId) => {
   const { recordset } = await query(`
     SELECT id, test_type, test_date, question_count, status, published_at

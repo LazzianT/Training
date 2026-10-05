@@ -4,7 +4,7 @@ import sql from 'mssql';
 import { authenticate } from '../../middleware/authenticate.js';
 import { publicAppUrl } from '../../config.js';
 import { query } from '../../db/pool.js';
-import { addEssayQuestion, addMultipleChoiceQuestion, createQrAccess, createTestSet, deleteEmptyTestSet, deleteQuestion, getAssessmentQrReadiness, getAssessmentResults, getPublicAssessment, listQuestions, listQrAccess, listTestSets, publishTestSet, resolveQrAccess, submitAttendance, submitFeedback, submitPublicAssessment } from './assessment.repository.js';
+import { addEssayQuestion, addMultipleChoiceQuestion, createQrAccess, createTestSet, deleteEmptyTestSet, deleteQuestion, getAssessmentQrReadiness, getAssessmentResults, getPublicAssessment, listEventParticipants, listQuestions, listQrAccess, listTestSets, publishTestSet, resolveQrAccess, submitAttendance, submitFeedback, submitPublicAssessment } from './assessment.repository.js';
 import { getEvent } from '../event/event.repository.js';
 
 const purpose = z.enum(['pre_test', 'post_test', 'feedback', 'attendance']);
@@ -23,7 +23,21 @@ assessmentRouter.get('/access/:token', async (request, response, next) => {
   try {
     const access = await resolveQrAccess(request.params.token);
     if (!access) return response.status(404).json({ error: { code: 'QR_EXPIRED', message: 'QR tidak berlaku.' } });
-    response.json({ eventId: access.event_id, purpose: access.purpose, title: access.judul, date: access.tgl, room: access.nama_ruangan, expiresAt: access.expires_at });
+    response.json({
+      eventId: access.event_id,
+      purpose: access.purpose,
+      title: access.judul,
+      date: access.tgl,
+      room: access.nama_ruangan,
+      expiresAt: access.expires_at,
+      /*
+        Sent with the payload rather than fetched separately, and limited to this
+        event's participants: the picker needs it the moment the page loads, and a
+        QR holder should be able to find their own name without being handed the
+        employee directory.
+      */
+      peserta: await listEventParticipants(access.event_id),
+    });
   } catch (error) {
     if (error?.number === 547 || error?.number === 2601 || error?.number === 2627) {
       return response.status(409).json({ error: { code: 'PUBLISH_FAILED', message: 'Test belum dapat dipublikasikan. Pastikan test memiliki soal dan struktur database assessment sudah diperbarui.' } });

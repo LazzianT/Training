@@ -5,8 +5,9 @@ import { apiBaseUrl, ApiRequestError } from '../api/auth.js';
 import { ChoiceGroup } from '../components/ChoiceGroup.js';
 import { ProgressBar, RatingScale } from '../components/RatingScale.js';
 import { SignaturePad } from '../components/SignaturePad.js';
+import { SearchSelect } from '../components/SearchSelect.js';
 import { useConfirm } from '../components/ConfirmDialog.js';
-import { Button, Field, inputClass, textareaClass } from '../components/ui/index.js';
+import { Button, Field, textareaClass } from '../components/ui/index.js';
 
 type Purpose = 'pre_test' | 'post_test' | 'feedback' | 'attendance';
 type Access = {
@@ -16,6 +17,12 @@ type Access = {
   date: string;
   room: string | null;
   expiresAt: string;
+  /**
+   * The participants of this event, so the form can offer a name instead of
+   * demanding a NIP. Name and NIP only: this list is readable by anyone holding
+   * the QR, and it is scoped to the event rather than the whole directory.
+   */
+  peserta: { nip: string; name: string }[];
 };
 type Assessment = Access & { questions: { id: number; number: number; text: string; options: Record<string, string> }[] };
 
@@ -205,19 +212,30 @@ const submit = async () => {
             <>
               {isAttendance && (
                 <div className="grid gap-5">
-                  <Field id="attendance-nip" label="NIP" hint="Sesuai data karyawan di HR.">
-                    {(field) => (
-                      <input
-                        inputMode="numeric"
-                        autoComplete="off"
-                        value={nip}
-                        onChange={(event) => setNip(event.target.value)}
-                        placeholder="Masukkan NIP"
-                        {...field}
-                        className={inputClass()}
-                      />
-                    )}
-                  </Field>
+            <Field
+              id="attendance-nip"
+              label="Nama Anda"
+              hint="Ketik nama atau NIP Anda, lalu pilih dari daftar peserta acara ini."
+            >
+              {(field) => (
+                <SearchSelect
+                  id="attendance-nip"
+                  options={access.peserta.map((orang) => ({
+                    value: orang.nip,
+                    label: orang.name,
+                    hint: orang.nip,
+                  }))}
+                  value={nip}
+                  onSelect={(option) => setNip(option.value)}
+                  onClear={() => setNip('')}
+                  placeholder="Ketik nama Anda"
+                  noMatch="Nama tidak ditemukan. Hubungi Human Capital bila Anda merasa terdaftar."
+                  disabled={sending}
+                  className={field.className}
+                  aria-describedby={field['aria-describedby']}
+                />
+              )}
+            </Field>
                   <div>
                     <p className="text-xs font-semibold text-slate-700">Tanda tangan</p>
                     <div className="mt-2">
@@ -229,16 +247,27 @@ const submit = async () => {
 
               {!isAttendance && !assessment && (
                 <div className="grid gap-5">
-                  <Field id="access-nip" label="NIP" hint="Sesuai data karyawan di HR.">
+                  <Field
+                    id="access-nip"
+                    label="Nama Anda"
+                    hint="Ketik nama atau NIP Anda, lalu pilih dari daftar peserta acara ini."
+                  >
                     {(field) => (
-                      <input
-                        inputMode="numeric"
-                        autoComplete="off"
+                      <SearchSelect
+                        id="access-nip"
+                        options={access.peserta.map((orang) => ({
+                          value: orang.nip,
+                          label: orang.name,
+                          hint: orang.nip,
+                        }))}
                         value={nip}
-                        onChange={(event) => setNip(event.target.value)}
-                        placeholder="Masukkan NIP"
-                        {...field}
-                        className={inputClass()}
+                        onSelect={(option) => setNip(option.value)}
+                        onClear={() => setNip('')}
+                        placeholder="Ketik nama Anda"
+                        noMatch="Nama tidak ditemukan. Hubungi Human Capital bila Anda merasa terdaftar."
+                        disabled={sending}
+                        className={field.className}
+                        aria-describedby={field['aria-describedby']}
                       />
                     )}
                   </Field>

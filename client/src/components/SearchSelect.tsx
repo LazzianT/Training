@@ -1,40 +1,53 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { duplicatedNames } from '../lib/peserta.js';
+import { ambiguousLabels, isAmbiguous } from '../lib/labels.js';
 
-type Peserta = { kodePeserta: string; namaLengkap: string };
+export type PickerOption = {
+  /** What gets sent to the server when this row is chosen. */
+  value: string;
+  /** What the person reads, and what they type to find themselves. */
+  label: string;
+  /** Shown only when the label is ambiguous, as a tie breaker. */
+  hint?: string | null;
+};
 
 type Props = {
   id: string;
-  peserta: Peserta[];
-  /** The selected participant code, or '' when nothing is chosen yet. */
+  options: PickerOption[];
+  /** The chosen value, or '' when nothing is chosen yet. */
   value: string;
-  onSelect: (kodePeserta: string, namaLengkap: string) => void;
+  onSelect: (option: PickerOption) => void;
   onClear: () => void;
+  placeholder: string;
+  /** Shown when nothing matches, and should say what to do about it. */
+  noMatch: string;
   disabled?: boolean;
   className: string;
-  /** Wired through from Field so the hint and error stay announced. */
   'aria-describedby'?: string;
   'aria-invalid'?: boolean;
 };
 
 /**
- * Type a name, pick yourself from the list.
+ * Type to search, click to choose.
  *
- * The code was the only way in before, and a code is something a participant has
- * to still have. HR hands it out once at induction; by the day the material runs
- * it is gone, which turns a two minute form into a walk to the HR desk. A name is
- * something nobody has lost.
+ * Shared by both chains. They differ only in what identifies a person, a NIP on one
+ * and a generated participant code on the other, so the field name is the only thing
+ * that is not common.
  *
- * The list is filtered in the browser rather than fetched per keystroke, because
- * the whole batch is already in the access payload and a participant on office
- * wifi should not wait on a round trip per letter.
+ * Somebody who has to type an identifier they were issued weeks ago will get it
+ * wrong or will not have it, and a name is something nobody has lost.
+ *
+ * Filtering happens in the browser rather than per keystroke against the server,
+ * because the whole list is already in the payload and somebody on office wifi
+ * should not wait on a round trip per letter.
  */
-export const OjtPesertaPicker = ({
+export const SearchSelect = ({
   id,
-  peserta,
+  options,
   value,
   onSelect,
   onClear,
+  placeholder,
+  noMatch,
   disabled,
   className,
   'aria-describedby': ariaDescribedBy,
@@ -45,24 +58,24 @@ export const OjtPesertaPicker = ({
   const [active, setActive] = useState(0);
   const boxRef = useRef<HTMLDivElement>(null);
 
-  const chosen = peserta.find((item) => item.kodePeserta === value) ?? null;
+  const chosen = options.find((option) => option.value === value) ?? null;
 
   /*
-    A name shared by more than one participant cannot identify anyone on its own.
-    Only those rows show their code, so the common case never puts a code in front
-    of somebody who does not need it, and the rare case is still resolvable.
+    A label shared by more than one entry cannot identify anyone on its own, so only
+    those rows show their hint. The common case never puts a code in front of
+    somebody who does not need it, and the rare case is still resolvable.
   */
-  const ambiguousNames = useMemo(() => duplicatedNames(peserta), [peserta]);
+  const ambiguous = useMemo(() => ambiguousLabels(options.map((option) => option.label)), [options]);
 
   const matches = useMemo(() => {
     const needle = term.trim().toLowerCase();
-    if (needle === '') return peserta;
-    return peserta.filter(
-      (item) =>
-        item.namaLengkap.toLowerCase().includes(needle) ||
-        item.kodePeserta.toLowerCase().includes(needle),
+    if (needle === '') return options;
+    return options.filter(
+      (option) =>
+        option.label.toLowerCase().includes(needle) ||
+        option.value.toLowerCase().includes(needle),
     );
-  }, [peserta, term]);
+  }, [options, term]);
 
   useEffect(() => {
     if (!open) return;
@@ -78,9 +91,9 @@ export const OjtPesertaPicker = ({
     setActive((current) => Math.min(current, Math.max(matches.length - 1, 0)));
   }, [matches.length]);
 
-  const choose = (item: Peserta) => {
-    onSelect(item.kodePeserta, item.namaLengkap);
-    setTerm(item.namaLengkap);
+  const choose = (option: PickerOption) => {
+    onSelect(option);
+    setTerm(option.label);
     setOpen(false);
   };
 
@@ -103,17 +116,17 @@ export const OjtPesertaPicker = ({
       }
       return;
     }
-    if (event.key === 'Escape') {
-      setOpen(false);
-    }
+    if (event.key === 'Escape') setOpen(false);
   };
 
   if (chosen) {
     return (
       <div className="flex flex-wrap items-center justify-between gap-3 border border-slate-300 bg-white px-3 py-3">
         <span className="min-w-0">
-          <span className="block truncate text-sm font-semibold text-slate-900">{chosen.namaLengkap}</span>
-          <span className="mt-0.5 block text-xs text-slate-500 tabular-nums">{chosen.kodePeserta}</span>
+          <span className="block truncate text-sm font-semibold text-slate-900">{chosen.label}</span>
+          {chosen.hint && (
+            <span className="mt-0.5 block text-xs text-slate-500 tabular-nums">{chosen.hint}</span>
+          )}
         </span>
         <button
           type="button"
@@ -145,7 +158,7 @@ export const OjtPesertaPicker = ({
         value={term}
         disabled={disabled}
         autoComplete="off"
-        placeholder="Ketik nama Anda"
+        placeholder={placeholder}
         onChange={(event) => {
           setTerm(event.target.value);
           setOpen(true);
@@ -160,36 +173,34 @@ export const OjtPesertaPicker = ({
         <ul
           id={`${id}-list`}
           role="listbox"
-          aria-label="Daftar peserta"
+          aria-label="Daftar pilihan"
           className="absolute z-20 mt-1 max-h-72 w-full overflow-y-auto border border-slate-200 bg-white shadow-lg"
         >
           {matches.length === 0 ? (
-            <li className="px-3 py-3 text-sm text-slate-500">
-              Nama tidak ditemukan. Hubungi HR bila Anda merasa terdaftar.
-            </li>
+            <li className="px-3 py-3 text-sm text-slate-500">{noMatch}</li>
           ) : (
-            matches.map((item, index) => {
-              const ambiguous = ambiguousNames.has(item.namaLengkap.trim().toLowerCase());
-              return (
-                <li key={item.kodePeserta} id={`${id}-opt-${index}`} role="option" aria-selected={index === active}>
-                  <button
-                    type="button"
-                    onMouseEnter={() => setActive(index)}
-                    onClick={() => choose(item)}
-                    className={`flex min-h-12 w-full items-center justify-between gap-3 px-3 py-2 text-left outline-none transition duration-150 ${
-                      index === active ? 'bg-slate-100' : 'hover:bg-slate-50'
-                    }`}
-                  >
-                    <span className="truncate text-sm text-slate-900">{item.namaLengkap}</span>
-                    {ambiguous && (
-                      <span className="shrink-0 text-xs text-slate-500 tabular-nums">
-                        {item.kodePeserta}
-                      </span>
-                    )}
-                  </button>
-                </li>
-              );
-            })
+            matches.map((option, index) => (
+              <li
+                key={option.value}
+                id={`${id}-opt-${index}`}
+                role="option"
+                aria-selected={index === active}
+              >
+                <button
+                  type="button"
+                  onMouseEnter={() => setActive(index)}
+                  onClick={() => choose(option)}
+                  className={`flex min-h-12 w-full items-center justify-between gap-3 px-3 py-2 text-left outline-none transition duration-150 ${
+                    index === active ? 'bg-slate-100' : 'hover:bg-slate-50'
+                  }`}
+                >
+                  <span className="truncate text-sm text-slate-900">{option.label}</span>
+                  {option.hint && isAmbiguous(option.label, ambiguous) && (
+                    <span className="shrink-0 text-xs text-slate-500 tabular-nums">{option.hint}</span>
+                  )}
+                </button>
+              </li>
+            ))
           )}
         </ul>
       )}

@@ -6,7 +6,7 @@ import { openOjtAccess, fetchOjtAccess, submitOjtAnswers, submitOjtFeedback } fr
 import { ChoiceGroup } from '../components/ChoiceGroup.js';
 import { ProgressBar, RatingScale } from '../components/RatingScale.js';
 import { SignaturePad } from '../components/SignaturePad.js';
-import { OjtPesertaPicker } from '../components/OjtPesertaPicker.js';
+import { SearchSelect } from '../components/SearchSelect.js';
 import { useConfirm } from '../components/ConfirmDialog.js';
 import { Button, Field, textareaClass } from '../components/ui/index.js';
 import { shortDate } from '../lib/date.js';
@@ -196,12 +196,18 @@ export const OjtAccessPage = () => {
                 hint="Ketik nama Anda lalu pilih dari daftar peserta batch ini."
               >
                 {(field) => (
-                  <OjtPesertaPicker
+                  <SearchSelect
                     id="ojt-peserta"
-                    peserta={access.peserta}
+                    options={access.peserta.map((orang) => ({
+                      value: orang.kodePeserta,
+                      label: orang.namaLengkap,
+                      hint: orang.kodePeserta,
+                    }))}
                     value={kode}
-                    onSelect={(kodePeserta) => setKode(kodePeserta)}
+                    onSelect={(option) => setKode(option.value)}
                     onClear={() => setKode('')}
+                    placeholder="Ketik nama Anda"
+                    noMatch="Nama tidak ditemukan. Hubungi HR bila Anda merasa terdaftar."
                     disabled={busy}
                     className={field.className}
                     aria-describedby={field['aria-describedby']}

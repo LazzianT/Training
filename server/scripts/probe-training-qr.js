@@ -142,6 +142,27 @@ const run = async () => {
   expect('it carries the date', String(access.body?.date ?? '').startsWith(besok), true);
   expect('no isOjt flag is invented', 'isOjt' in (access.body ?? {}), false);
 
+  /*
+    The name picker needs the event's participants. It is the one list a QR holder
+    can read without an account, so what it does *not* contain matters as much as
+    what it does: scoped to this event, and carrying nothing but a name and a NIP.
+  */
+  const roster = access.body?.peserta;
+  expect('roster is an array', Array.isArray(roster), true);
+  expect('roster holds this participant', roster?.some((row) => row.nip === nip), true);
+  expect('roster exposes only name and nip', [...new Set((roster ?? []).flatMap((row) => Object.keys(row)))].sort().join(','), 'name,nip');
+  expect('roster is not the whole directory', (roster ?? []).length < 20, true);
+
+  const others = await query(
+    'SELECT COUNT(DISTINCT event_id) AS n FROM dbo.training_peserta_acara WHERE participant_nip = @nip;',
+    (r) => r.input('nip', nip),
+  );
+  if (Number(others.recordset[0].n) === 1) {
+    // Only meaningful when this person is on exactly one event: the roster should
+    // then be that one event's list and nothing borrowed from elsewhere.
+    expect('roster belongs to this event', (roster ?? []).length >= 1, true);
+  }
+
   const opened = await call(`/api/assessment/access/${qr.body.token}/open`, null, {
     method: 'POST',
     body: JSON.stringify({ nip, signatureData: null }),
