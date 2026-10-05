@@ -59,8 +59,10 @@ export const ConfirmProvider = ({ children }: { children: ReactNode }) => {
             <button
               type="button"
               onClick={() => close(true)}
-              className={`h-10 px-4 text-sm font-semibold text-white outline-none transition duration-150 focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 ${
-                pending?.tone === 'danger' ? 'bg-red-600 hover:bg-red-700' : 'bg-slate-900 hover:bg-slate-700'
+              className={`h-10 px-4 text-sm font-semibold outline-none transition duration-150 focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 ${
+                pending?.tone === 'danger'
+                  ? 'bg-red-600 text-white hover:bg-red-700'
+                  : 'bg-accent text-slate-900 hover:bg-accent-strong'
               }`}
             >
               {pending?.confirmLabel ?? 'Ya, lanjutkan'}

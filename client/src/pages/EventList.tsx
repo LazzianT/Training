@@ -149,7 +149,7 @@ export const EventList = () => {
           <Link
             to="/events/new"
             data-tour="events.create"
-            className="flex h-11 items-center bg-slate-900 px-3.5 text-sm font-semibold text-white outline-none transition duration-150 hover:bg-slate-700 focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
+            className="flex h-11 items-center bg-accent px-3.5 text-sm font-semibold text-slate-900 outline-none transition duration-150 hover:bg-accent-strong focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
           >
             Buat Acara
           </Link>
@@ -180,7 +180,7 @@ export const EventList = () => {
           <div className="border-t border-slate-200 px-6 py-4 text-center">
             <Link
               to="/events/new"
-              className="inline-flex h-11 items-center bg-slate-900 px-3.5 text-sm font-semibold text-white outline-none transition duration-150 hover:bg-slate-700 focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
+              className="inline-flex h-11 items-center bg-accent px-3.5 text-sm font-semibold text-slate-900 outline-none transition duration-150 hover:bg-accent-strong focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
             >
               Buat acara pertama
             </Link>

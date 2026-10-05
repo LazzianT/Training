@@ -123,7 +123,7 @@ export const Certificates = () => {
                     {item.hadir ? (
                       <Link
                         to={`/certificates/${item.eventId}`}
-                        className="inline-flex h-9 items-center border border-slate-900 px-3 text-xs font-semibold text-slate-900 outline-none transition duration-150 hover:bg-slate-900 hover:text-white focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
+                        className="inline-flex h-9 items-center border border-accent bg-accent px-3 text-xs font-semibold text-slate-900 outline-none transition duration-150 hover:border-accent-strong hover:bg-accent-strong focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
                       >
                         {item.certificate ? 'Cetak sertifikat' : 'Buat sertifikat'}
                       </Link>

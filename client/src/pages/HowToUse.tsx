@@ -575,7 +575,7 @@ export const HowToUse = () => {
                       onClick={() => open(section.id)}
                       className={`flex w-full items-center gap-2.5 border-l-2 px-3 py-2.5 text-left text-sm outline-none transition duration-150 focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 ${
                         isActive
-                          ? 'border-slate-900 bg-slate-50 font-semibold text-slate-900'
+                          ? 'border-accent bg-accent-soft font-semibold text-slate-900'
                           : 'border-transparent text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900'
                       }`}
                     >
@@ -659,7 +659,7 @@ export const HowToUse = () => {
                   const next = SECTIONS[SECTIONS.findIndex((s) => s.id === active.id) + 1];
                   if (next) open(next.id);
                 }}
-                className="h-9 border border-slate-900 bg-slate-900 px-3 text-xs font-semibold text-white outline-none transition duration-150 hover:bg-slate-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-200 disabled:text-slate-400 focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
+                className="h-9 border border-accent bg-accent px-3 text-xs font-semibold text-slate-900 outline-none transition duration-150 hover:bg-accent-strong disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-200 disabled:text-slate-400 focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
               >
                 Berikutnya &rsaquo;
               </button>

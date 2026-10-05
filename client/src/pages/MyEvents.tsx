@@ -375,7 +375,7 @@ export const MyEvents = () => {
                   <ActionBar>
                     <Link
                       to={`/my-events/${event.id}/questions`}
-                      className={`${actionClass} border-slate-900 bg-slate-900 text-white outline-none hover:bg-slate-700`}
+                      className={`${actionClass} border-accent bg-accent text-slate-900 outline-none hover:bg-accent-strong`}
                     >
                       {ready ? 'Kelola Soal' : 'Buat Soal'}
                     </Link>

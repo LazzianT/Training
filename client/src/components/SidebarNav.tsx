@@ -31,7 +31,13 @@ type SidebarNavProps = {
   onRequestExpand?: () => void;
 };
 
-const sectionClass = 'px-3 pb-1.5 text-[10px] font-semibold tracking-[0.16em] text-slate-500 uppercase';
+/*
+  The sidebar is the navy surface, so everything inside it is painted light on dark
+  rather than dark on light. The selected row is marked with the accent orange,
+  which is the one place in the sidebar the accent is used: it is the row that
+  answers "where am I", and that is worth the colour.
+*/
+const sectionClass = 'px-3 pb-1.5 text-[10px] font-semibold tracking-[0.16em] text-white/45 uppercase';
 
 const itemClass = (isActive: boolean, showLabels: boolean) =>
   [
@@ -45,8 +51,8 @@ const itemClass = (isActive: boolean, showLabels: boolean) =>
     'focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 focus-visible:outline-none',
     showLabels ? 'pl-3' : 'lg:justify-center lg:pl-0 lg:pr-0',
     isActive
-      ? 'border-slate-900 bg-slate-50 font-semibold text-slate-900'
-      : 'border-transparent text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900',
+      ? 'border-accent bg-white/10 font-semibold text-white'
+      : 'border-transparent text-white/70 hover:border-white/25 hover:bg-white/5 hover:text-white',
   ].join(' ');
 
 const childClass = (isActive: boolean) =>
@@ -54,8 +60,8 @@ const childClass = (isActive: boolean) =>
     'block border-l-2 py-1.5 pr-3 pl-9 text-[13px] transition duration-150',
     'focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 focus-visible:outline-none',
     isActive
-      ? 'border-slate-900 font-semibold text-slate-900'
-      : 'border-transparent text-slate-600 hover:border-slate-300 hover:text-slate-900',
+      ? 'border-accent font-semibold text-white'
+      : 'border-transparent text-white/60 hover:border-white/25 hover:text-white',
   ].join(' ');
 
 const Chevron = ({ open }: { open: boolean }) => (

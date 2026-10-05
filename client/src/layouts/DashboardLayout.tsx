@@ -100,14 +100,14 @@ export const DashboardLayout = ({ children }: { children: ReactNode }) => {
   return (
     <div data-surface="saas" className="min-h-dvh bg-slate-50 text-slate-900 lg:grid lg:grid-cols-[auto_1fr]">
       {/* Mobile only: a strip is unavoidable at this width, so it holds nothing but the toggle. */}
-      <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 lg:hidden print:hidden">
+      <div className="flex items-center justify-between border-b border-white/10 bg-slate-900 px-4 py-3 lg:hidden print:hidden">
         <span className="text-sm font-semibold tracking-tight">BMC Training</span>
         <button
           type="button"
           onClick={() => setDrawerOpen((open) => !open)}
           aria-expanded={drawerOpen}
           aria-label={drawerOpen ? 'Tutup menu' : 'Buka menu'}
-          className="flex h-10 w-10 items-center justify-center text-slate-700 outline-none transition duration-150 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
+          className="flex h-10 w-10 items-center justify-center text-white/80 outline-none transition duration-150 hover:text-white focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
         >
           <span className="flex flex-col gap-1" aria-hidden="true">
             <span className="block h-px w-5 bg-current" />
@@ -135,7 +135,7 @@ export const DashboardLayout = ({ children }: { children: ReactNode }) => {
 
       <aside
         data-tour="sidebar"
-        className={`fixed inset-y-0 left-0 z-30 flex h-dvh max-h-dvh flex-col justify-between overflow-y-auto overflow-x-hidden border-r border-slate-200 bg-white transition-[width,transform] duration-200 print:hidden lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-30 flex h-dvh max-h-dvh flex-col justify-between overflow-y-auto overflow-x-hidden border-r border-white/10 bg-slate-900 transition-[width,transform] duration-200 print:hidden lg:translate-x-0 ${
           showLabels ? 'w-64' : 'w-64 lg:w-16'
         } ${drawerOpen ? 'translate-x-0' : '-translate-x-full'}`}
         style={{ paddingTop: 'env(safe-area-inset-top)' }}
@@ -157,7 +157,7 @@ export const DashboardLayout = ({ children }: { children: ReactNode }) => {
               in the page title and on every printed sheet.
             */}
             <IconBrand
-              className={`h-8 w-8 shrink-0 text-slate-900 ${showLabels ? '' : 'lg:hidden'}`}
+              className={`h-8 w-8 shrink-0 text-white ${showLabels ? '' : 'lg:hidden'}`}
             />
             <button
               type="button"
@@ -170,7 +170,7 @@ export const DashboardLayout = ({ children }: { children: ReactNode }) => {
                 ml-auto and was pushed past the edge, so the rail had no visible
                 control at all.
               */
-              className={`h-8 w-8 shrink-0 items-center justify-center text-slate-400 outline-none transition duration-150 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 ${
+              className={`h-8 w-8 shrink-0 items-center justify-center text-white/50 outline-none transition duration-150 hover:text-white focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 ${
                 showLabels ? 'ml-auto hidden lg:flex' : 'mx-auto flex'
               }`}
             >
@@ -189,20 +189,20 @@ export const DashboardLayout = ({ children }: { children: ReactNode }) => {
         </div>
 
         <div
-          className={`shrink-0 border-t border-slate-200 pt-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))] ${
+          className={`shrink-0 border-t border-white/10 pt-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))] ${
             showLabels ? 'px-3 sm:px-5' : 'px-3 lg:px-2'
           }`}
         >
           <div className={`flex items-center gap-3 ${showLabels ? '' : 'lg:justify-center'}`}>
             <span
               aria-hidden="true"
-              className="flex h-9 w-9 shrink-0 items-center justify-center border border-slate-200 bg-slate-100 text-xs font-semibold text-slate-700"
+              className="flex h-9 w-9 shrink-0 items-center justify-center border border-white/15 bg-white/10 text-xs font-semibold text-white"
             >
               {initials}
             </span>
             <div data-tour="role" className={`min-w-0 flex-1 ${showLabels ? '' : 'lg:hidden'}`}>
-              <p className="truncate text-sm font-semibold text-slate-900">{employee?.name ?? '-'}</p>
-              <p className="truncate text-xs text-slate-500">
+              <p className="truncate text-sm font-semibold text-white">{employee?.name ?? '-'}</p>
+              <p className="truncate text-xs text-white/60">
                 {role}
                 {employee?.nip ? ` · ${employee.nip}` : ''}
               </p>
@@ -213,7 +213,7 @@ export const DashboardLayout = ({ children }: { children: ReactNode }) => {
             data-tour="signout"
             onClick={() => signOut(false)}
             title={showLabels ? undefined : 'Keluar'}
-            className={`mt-4 flex h-10 w-full items-center justify-center gap-2 border border-slate-200 bg-white text-sm font-semibold text-slate-700 outline-none transition duration-150 hover:border-slate-900 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 ${
+            className={`mt-4 flex h-10 w-full items-center justify-center gap-2 border border-white/15 bg-transparent text-sm font-semibold text-white/80 outline-none transition duration-150 hover:border-white hover:text-white focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 ${
               showLabels ? '' : 'lg:p-0'
             }`}
           >

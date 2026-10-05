@@ -288,7 +288,7 @@ export const OjtMateriMasterPage = () => {
                         className={`h-8 border px-2.5 text-xs font-semibold outline-none transition duration-150 disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 ${
                           item.aktif
                             ? 'border-slate-300 text-slate-900 hover:border-red-600 hover:text-red-600'
-                            : 'border-slate-900 bg-slate-900 text-white hover:bg-slate-700'
+                            : 'border-accent bg-accent text-slate-900 hover:bg-accent-strong'
                         }`}
                       >
                         {item.aktif ? 'Nonaktifkan' : 'Aktifkan'}

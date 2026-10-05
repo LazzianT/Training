@@ -97,7 +97,7 @@ export const LoginForm = ({ onSubmit, nipRef }: LoginFormProps) => {
         <button
           type="submit"
           disabled={loading}
-          className="mt-1 h-12 bg-slate-900 text-sm font-semibold text-white outline-none transition duration-150 hover:bg-slate-700 focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 disabled:cursor-wait disabled:bg-slate-400 disabled:animate-pulse"
+          className="mt-1 h-12 bg-accent text-sm font-semibold text-slate-900 outline-none transition duration-150 hover:bg-accent-strong focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 disabled:cursor-wait disabled:bg-slate-400 disabled:animate-pulse"
         >
           {loading ? 'Memeriksa...' : 'Masuk ke workspace'}
         </button>
