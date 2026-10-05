@@ -33,7 +33,13 @@ const sectionClass = 'px-3 pb-1.5 text-[10px] font-semibold tracking-[0.16em] te
 
 const itemClass = (isActive: boolean, showLabels: boolean) =>
   [
-    'group relative flex items-center gap-3 border-l-2 py-2.5 pr-3 text-sm transition duration-150',
+    /*
+      w-full and min-w-0 are load-bearing. Without them the item is sized to its
+      own max-content, and a group heading like "PEMANTAUAN" is wider than the
+      collapsed rail, so the item overflows it and justify-center parks the icon
+      past the clip. That is what made the icons vanish when the sidebar closed.
+    */
+    'group relative flex w-full min-w-0 items-center gap-3 border-l-2 py-2.5 pr-3 text-sm transition duration-150',
     'focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 focus-visible:outline-none',
     showLabels ? 'pl-3' : 'lg:justify-center lg:pl-0 lg:pr-0',
     isActive
@@ -125,11 +131,16 @@ export const SidebarNav = ({ canManageEvents, canViewMyEvents, showLabels, onReq
   ].filter((section) => section.items.length > 0);
 
   return (
-    <nav aria-label="Menu utama" className="grid gap-5">
+    <nav aria-label="Menu utama" className="grid w-full grid-cols-1 gap-5">
       {sections.map((section) => (
-        <div key={section.heading}>
-          <p className={sectionClass}>{section.heading}</p>
-          <ul className="grid gap-0.5">
+        <div key={section.heading} className="min-w-0">
+          {/*
+            Hidden rather than clipped in the rail. It was the widest thing in the
+            nav, so it set the width of every item under it and pushed the icons
+            out of view; and a heading cut off as "PEMA" reads as a fault anyway.
+          */}
+          {showLabels && <p className={sectionClass}>{section.heading}</p>}
+          <ul className="grid w-full grid-cols-1 gap-0.5">
             {section.items.map((item) => {
               const Icon = item.icon;
 
@@ -157,11 +168,11 @@ export const SidebarNav = ({ canManageEvents, canViewMyEvents, showLabels, onReq
               return (
                 <li key={item.to}>
                   {/*
-                    With labels on, the row is a button that expands and the
-                    children navigate. With labels off there is no room for a
-                    nested list, so the row falls back to being a link to the
-                    group's own page: the rail is a deliberate shortcut, and
-                    without this the sub-pages would be unreachable from it.
+                    With labels on, the row is a button that expands and the children
+                    navigate. With labels off there is no room for a nested list, so
+                    the row opens the sidebar instead: the group is the entry point
+                    to its submenu, and pointing it at the group's own page would
+                    leave the submenu unreachable from the rail.
                   */}
                   {showLabels ? (
                     <div className={itemClass(containsRoute(item), true)}>
@@ -191,7 +202,7 @@ export const SidebarNav = ({ canManageEvents, canViewMyEvents, showLabels, onReq
                         setToggled((current) => ({ ...current, [item.to]: true }));
                         onRequestExpand?.();
                       }}
-                      className={`w-full ${itemClass(containsRoute(item), false)}`}
+                      className={itemClass(containsRoute(item), false)}
                     >
                       <Icon />
                       <span className="sr-only">{item.label}</span>
@@ -199,9 +210,9 @@ export const SidebarNav = ({ canManageEvents, canViewMyEvents, showLabels, onReq
                   )}
 
                   {open && showLabels && (
-                    <ul className="grid gap-0.5">
+                    <ul className="grid w-full grid-cols-1 gap-0.5">
                       {item.children.map((child) => (
-                        <li key={child.to}>
+                        <li key={child.to} className="min-w-0">
                           <NavLink to={child.to} end className={({ isActive }) => childClass(isActive)}>
                             {child.label}
                           </NavLink>

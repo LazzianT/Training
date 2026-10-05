@@ -140,13 +140,20 @@ export const DashboardLayout = ({ children }: { children: ReactNode }) => {
         } ${drawerOpen ? 'translate-x-0' : '-translate-x-full'}`}
         style={{ paddingTop: 'env(safe-area-inset-top)' }}
       >
-        <div className="flex min-h-0 flex-1 flex-col px-3 py-5 sm:px-5">
+        <div
+          className={`flex min-h-0 flex-1 flex-col py-5 ${
+            showLabels ? 'px-3 sm:px-5' : 'px-3 lg:px-2'
+          }`}
+        >
           <div className={`flex items-center gap-2.5 ${showLabels ? '' : 'lg:justify-center'}`}>
             {/*
-              The wordmark is hidden rather than shrunk in the rail. It is about
-              80px wide at this height and the rail has 64, so leaving it in would
-              clip it mid-letter and read as a rendering fault. The mark comes back
-              the moment the rail opens.
+              The logo is hidden rather than shrunk in the rail. It is about 80px
+              wide at this height and the rail has 64, so leaving it in would clip
+              it mid-letter and read as a rendering fault. It comes back the moment
+              the rail opens.
+
+              No wordmark beside it: the logo already says the name, and the alt
+              text carries it for anyone who cannot see the image.
             */}
             <img
               src="/logo.png"
@@ -155,9 +162,6 @@ export const DashboardLayout = ({ children }: { children: ReactNode }) => {
               height={404}
               className={`h-8 w-auto shrink-0 object-contain ${showLabels ? '' : 'lg:hidden'}`}
             />
-            <p className={`truncate text-sm font-semibold tracking-tight ${showLabels ? '' : 'lg:sr-only'}`}>
-              BMC Training
-            </p>
             <button
               type="button"
               onClick={toggleCollapsed}
@@ -177,7 +181,7 @@ export const DashboardLayout = ({ children }: { children: ReactNode }) => {
             </button>
           </div>
 
-          <div className={`mt-8 ${showLabels ? '' : 'lg:mt-6'}`}>
+          <div className={`mt-8 min-w-0 ${showLabels ? '' : 'lg:mt-6'}`}>
             <SidebarNav
               canManageEvents={isAdmin}
               canViewMyEvents={isAdmin || employee?.isCoordinator === true || employee?.isEventTrainer === true}
@@ -187,7 +191,11 @@ export const DashboardLayout = ({ children }: { children: ReactNode }) => {
           </div>
         </div>
 
-        <div className="shrink-0 border-t border-slate-200 px-3 pt-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:px-5">
+        <div
+          className={`shrink-0 border-t border-slate-200 pt-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))] ${
+            showLabels ? 'px-3 sm:px-5' : 'px-3 lg:px-2'
+          }`}
+        >
           <div className={`flex items-center gap-3 ${showLabels ? '' : 'lg:justify-center'}`}>
             <span
               aria-hidden="true"
