@@ -1,3 +1,5 @@
+import { useId } from 'react';
+
 type RatingScaleProps = {
   legend: string;
   value: number;
@@ -13,13 +15,22 @@ const SCALE = [1, 2, 3, 4, 5];
   A 1-5 scale with both endpoint words visible, because a bare number means
   nothing to a participant holding a phone. Implemented as a radiogroup so
   arrow keys move between scores.
+
+  The legend is rendered, not only announced. It used to live in aria-label alone,
+  so a sighted participant saw a row of numbers and two endpoint words with no
+  question above them and nothing to answer. Screen readers were told the question
+  and everyone else was not, which is the wrong way round.
 */
 export const RatingScale = ({ legend, value, onChange, lowLabel, highLabel, max = 5 }: RatingScaleProps) => {
   const steps = SCALE.filter((score) => score <= max);
+  const legendId = useId();
 
   return (
-    <div role="radiogroup" aria-label={legend}>
-      <div className="grid grid-cols-5 gap-1.5">
+    <div role="radiogroup" aria-labelledby={legendId}>
+      <p id={legendId} className="text-sm font-medium text-slate-900">
+        {legend}
+      </p>
+      <div className="mt-3 grid grid-cols-5 gap-1.5">
         {steps.map((score) => {
           const selected = value === score;
           return (
