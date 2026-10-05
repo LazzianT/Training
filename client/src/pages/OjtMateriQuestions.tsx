@@ -229,7 +229,7 @@ export const OjtMateriQuestionsPage = () => {
     if (!session || !testSetId) return;
     const ok = await confirm({
       title: 'Publikasikan bank soal?',
-      description: `Bank ini dipakai semua batch yangMengajar materi ini, bukan hanya satu batch. Setelah terbit, QR pre-test dan post-test bisa dibuat. Draft yang belum disimpan tidak ikut terbit.`,
+      description: `Bank ini dipakai semua batch yang mengajar materi ini, bukan hanya satu batch. Setelah terbit, QR pre-test dan post-test bisa dibuat. Draft yang belum disimpan tidak ikut terbit.`,
       confirmLabel: 'Publikasikan',
     });
     if (!ok) return;

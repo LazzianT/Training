@@ -220,7 +220,7 @@ export const OjtAccessPage = () => {
           ) : (
             <>
               <div className="enter-section surface-card px-4 py-3">
-                <p className="text-xs text-slate-500">Beranda sebagai</p>
+                <p className="text-xs text-slate-500">Mengisi sebagai</p>
                 <p className="mt-0.5 text-sm font-semibold text-slate-900">{opened.nama}</p>
               </div>
 

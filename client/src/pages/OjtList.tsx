@@ -257,8 +257,8 @@ export const OjtList = () => {
                   </div>
                   <p className="mt-2 text-base font-semibold tracking-[-0.02em] text-slate-900">{batch.judul}</p>
                   <p className="mt-1 text-xs text-slate-500">
-                    {shortDate(batch.tanggalMulai)}  {shortDate(batch.tanggalSelesai)}
-                    {batch.lokasi ? `  ${batch.lokasi}` : ''}
+                    {shortDate(batch.tanggalMulai)} – {shortDate(batch.tanggalSelesai)}
+                    {batch.lokasi ? ` · ${batch.lokasi}` : ''}
                   </p>
                 </div>
                 <span className="shrink-0 text-right text-xs text-slate-500">

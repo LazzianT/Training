@@ -227,7 +227,7 @@ export const MyEvents = () => {
           >
             <StatTile label="Acara ditugaskan" value={String(events.length)} unit="acara" />
             <StatTile
-              label="Siapassessment"
+              label="Siap assessment"
               value={String(events.filter((event) => assessmentReady[event.id]).length)}
               unit="acara"
               note="soal sudah dipublish"
