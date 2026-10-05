@@ -1,6 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { Panel } from '../components/ui/index.js';
+import {
+  MockButton,
+  MockChip,
+  MockFrame,
+  MockInput,
+  MockLine,
+  MockPanel,
+  MockQrButtons,
+  MockRow,
+  MockSidebar,
+} from '../components/Mockup.js';
 
 /**
  * The guide, in the app rather than in a document.
@@ -11,7 +22,7 @@ import { Panel } from '../components/ui/index.js';
  * It duplicates the written manual by design: the person who needs the guide most
  * is the one who does not know a separate document exists yet.
  */
-type Step = { text: string; detail?: string };
+type Step = { text: string; detail?: string; mock?: ReactNode };
 type Section = { id: string; title: string; short: string; intro?: string; steps: Step[]; note?: ReactNode };
 
 const READ_KEY = 'training.howto.read';
@@ -23,7 +34,18 @@ const SECTIONS: Section[] = [
     short: 'Masuk',
     intro: 'Aplikasi ini dibuka lewat browser, tidak perlu memasang apa pun.',
     steps: [
-      { text: 'Isi NIP pada kolom Nomor Induk Karyawan.' },
+      {
+        text: 'Isi NIP pada kolom Nomor Induk Karyawan.',
+        mock: (
+          <MockFrame label="Halaman masuk">
+            <div className="grid max-w-64 gap-2">
+              <MockInput placeholder="Nomor Induk Karyawan" />
+              <MockInput placeholder="Tanggal lahir · DD MM YY" />
+              <MockButton tone="dark">Masuk ke workspace</MockButton>
+            </div>
+          </MockFrame>
+        ),
+      },
       { text: 'Isi tanggal lahir dengan 6 digit, format DD MM YY.', detail: 'Contoh: 17 08 90 untuk 17 Agustus 1990.' },
       { text: 'Tekan Masuk ke workspace.' },
       {
@@ -40,7 +62,18 @@ const SECTIONS: Section[] = [
     intro: 'Aplikasi bisa menjelaskan dirinya sendiri, tanpa perlu membaca halaman ini dulu.',
     steps: [
       { text: 'Saat pertama masuk, tur awal berjalan sendiri dan mengenalkan menu, peran, dan ringkasan.' },
-      { text: 'Untuk halaman lain, tekan tombol Tur di kanan atas.', detail: 'Tombol ini hanya muncul di halaman yang memang punya tur.' },
+      {
+        text: 'Untuk halaman lain, tekan tombol Tur di kanan atas.',
+        detail: 'Tombol ini hanya muncul di halaman yang memang punya tur.',
+        mock: (
+          <MockFrame label="Tombol Tur">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-xs font-semibold text-slate-900">Daftar Acara</span>
+              <MockButton>? Tur</MockButton>
+            </div>
+          </MockFrame>
+        ),
+      },
       { text: 'Gunakan Lanjut dan Kembali, atau tombol panah kiri dan kanan.' },
       { text: 'Tekan Esc atau Lewati untuk berhenti kapan saja.' },
     ],
@@ -51,13 +84,49 @@ const SECTIONS: Section[] = [
     short: 'Training',
     intro: 'Untuk admin Human Capital dan pengisi acara. Ini alurnya dari awal sampai hasil.',
     steps: [
-      { text: 'Buka Event lalu Buat Acara.', detail: 'Isi judul, tanggal, jam, ruang, sasaran, dan pengisi acara. Pengisi internal dicari dari data HR; pengisi eksternal diisi manual.' },
+      {
+        text: 'Buka Event lalu Buat Acara.',
+        detail: 'Isi judul, tanggal, jam, ruang, sasaran, dan pengisi acara. Pengisi internal dicari dari data HR; pengisi eksternal diisi manual.',
+        mock: (
+          <MockFrame label="Buat Acara">
+            <div className="flex gap-3">
+              <div className="hidden w-24 shrink-0 sm:block">
+                <MockSidebar active="Daftar Acara" />
+              </div>
+              <div className="grid min-w-0 flex-1 gap-2">
+                <MockInput placeholder="Judul acara" />
+                <div className="grid grid-cols-3 gap-2">
+                  <MockInput placeholder="Tanggal" />
+                  <MockInput placeholder="Mulai" />
+                  <MockInput placeholder="Selesai" />
+                </div>
+                <MockInput placeholder="Cari karyawan sebagai pengisi internal" />
+                <div className="flex gap-2">
+                  <MockButton tone="dark">Simpan Acara</MockButton>
+                  <MockButton>Batal</MockButton>
+                </div>
+              </div>
+            </div>
+          </MockFrame>
+        ),
+      },
       { text: 'Simpan Acara.', detail: 'Acara baru berstatus Draf.' },
       { text: 'Buka acaranya dari Daftar Acara, lalu tambahkan peserta.', detail: 'Ada daftar kandidat rekomendasi — karyawan yang belum pernah mengikuti training dengan judul mirip — dan kolom pencarian NIP atau nama.' },
       { text: 'Cetak undangan bila diperlukan.', detail: 'Dari Daftar Acara tekan Cetak undangan, lalu tekan Cetak Undangan. Memakai fitur cetak browser, jadi atur kertas ke A4 dan matikan header/footer browser.' },
       { text: 'Pengisi acara menyiapkan soal di menu Acara Saya.', detail: 'Tekan Buat Soal, pilih jenis soal, isi pertanyaan dan kunci jawaban untuk pilihan ganda, lalu Simpan Soal Ini. Gambar soal bisa ditempel dengan Ctrl+V.' },
       { text: 'Tekan Publikasikan Test.', detail: 'Setelah terbit, jumlah soal terkunci — peserta yang sudah menjawab tidak boleh dinilai dengan soal yang berbeda.' },
-      { text: 'Buat QR assessment.', detail: 'Tersedia QR Pre-test, Post-test, Feedback, dan Absensi. QR hanya muncul setelah soal dipublikasikan.' },
+      {
+        text: 'Buat QR assessment.',
+        detail: 'Tersedia QR Pre-test, Post-test, Feedback, dan Absensi. QR hanya muncul setelah soal dipublikasikan.',
+        mock: (
+          <MockFrame label="QR assessment di Acara Saya">
+            <MockQrButtons />
+            <p className="mt-2 text-[10px] text-slate-400">
+              QR assessment terbuka setelah soal dipublish.
+            </p>
+          </MockFrame>
+        ),
+      },
       { text: 'Peserta mengerjakan lewat QR, lalu lihat hasilnya.', detail: 'Di Acara Saya tekan Lihat Hasil untuk melihat nilai dan daftar kehadiran.' },
     ],
     note: 'QR memakai tautan lengkap yang bisa langsung dibuka dari ponsel. Salin lewat tombol Salin tautan.',
@@ -68,13 +137,105 @@ const SECTIONS: Section[] = [
     short: 'OJT',
     intro: 'OJT untuk karyawan baru yang belum terdaftar di HRIS dan belum punya NIP. Karena itu peserta tidak punya akun dan memakai kode dari sistem.',
     steps: [
-      { text: 'Buat batch di menu OJT.', detail: 'Batch baru selalu berstatus Draf. Selama draf, QR belum bisa dibuat dan peserta belum bisa mengerjakan apa pun.' },
+      {
+        text: 'Buat batch di menu OJT.',
+        detail: 'Batch baru selalu berstatus Draf. Selama draf, QR belum bisa dibuat dan peserta belum bisa mengerjakan apa pun.',
+        mock: (
+          <MockFrame label="Daftar Batch OJT">
+            <div className="flex gap-3">
+              <div className="hidden w-24 shrink-0 sm:block">
+                <MockSidebar active="OJT" />
+              </div>
+              <div className="grid min-w-0 flex-1 gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-900">OJT</span>
+                  <MockButton tone="dark">Buat Batch</MockButton>
+                </div>
+                <div className="border border-slate-200 bg-white p-2">
+                  <div className="flex items-center justify-between">
+                    <MockChip tone="amber">Draf</MockChip>
+                    <span className="text-[9px] text-slate-500 tabular-nums">OJT-2026-01</span>
+                  </div>
+                  <MockLine width="w-32" dark />
+                  <span className="mt-2 block text-[9px] text-slate-500">
+                    28 Sep 2026 – 2 Okt 2026 · 4 peserta
+                  </span>
+                </div>
+              </div>
+            </div>
+          </MockFrame>
+        ),
+      },
       { text: 'Tambahkan peserta. Cukup isi nama.', detail: 'Sistem membuat kode otomatis seperti OJT-00001. Catat kodenya dan berikan ke peserta.' },
       { text: 'Siapkan katalog materi di Master Materi.', detail: 'Katalog ini dipakai bersama semua batch, jadi satu materi cukup ditulis sekali. Materi dinonaktifkan, tidak dihapus, supaya riwayat peserta tetap utuh.' },
-      { text: 'Susun jadwal di kalender.', detail: 'Klik tanggal, isi nama materi dan pengisinya, lalu Simpan Materi. Satu materi hanya boleh dijadwalkan satu kali dalam satu batch.' },
+      {
+        text: 'Susun jadwal di kalender.',
+        detail: 'Klik tanggal, isi nama materi dan pengisinya, lalu Simpan Materi. Satu materi hanya boleh dijadwalkan satu kali dalam satu batch.',
+        mock: (
+          <MockFrame label="Jadwal Materi">
+            <div className="grid grid-cols-7 border-t border-l border-slate-200">
+              {Array.from({ length: 21 }, (_, index) => {
+                const inBatch = index >= 8 && index <= 18;
+                const scheduled = index === 10 || index === 13;
+                return (
+                  <div
+                    key={index}
+                    className={`min-h-9 border-r border-b border-slate-200 p-1 ${
+                      inBatch ? 'bg-white' : 'bg-slate-50'
+                    }`}
+                  >
+                    <span className={`block text-[8px] tabular-nums ${inBatch ? 'text-slate-500' : 'text-slate-300'}`}>
+                      {index + 1}
+                    </span>
+                    {scheduled && (
+                      <span className="mt-0.5 block truncate bg-slate-900 px-0.5 text-[7px] text-white">
+                        {index === 10 ? 'Safety' : 'QC Tools'}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <p className="mt-2 text-[10px] text-slate-400">
+              Tanggal di luar rentang batch tidak bisa diklik.
+            </p>
+          </MockFrame>
+        ),
+      },
       { text: 'Tulis bank soal tiap materi.', detail: 'Dari Master Materi tekan Soal, atau dari modal Assessment. Bank soal milik materi dan dipakai semua batch yang mengajarnya. Tekan Publikasikan bila sudah siap.' },
       { text: 'Terbitkan batch.', detail: 'Setelah terbit, QR boleh dibuat dan peserta boleh mengerjakan.' },
-      { text: 'Buat QR per materi.', detail: 'Di tabel Materi Batch Ini, tekan Assessment pada baris materi. Titik hijau berarti soal sudah siap; kuning berarti belum.' },
+      {
+        text: 'Buat QR per materi.',
+        detail: 'Di tabel Materi Batch Ini, tekan Assessment pada baris materi. Titik hijau berarti soal sudah siap; kuning berarti belum.',
+        mock: (
+          /* Frame label differs from the panel inside it; repeating "Materi Batch
+             Ini" twice in one picture read as a rendering fault. */
+          <MockFrame label="Detail Batch">
+            <MockPanel title="Materi Batch Ini">
+              <MockRow>
+                <span className="min-w-0">
+                  <span className="block text-[11px] font-medium text-slate-900">Safety Induction</span>
+                  <span className="block text-[9px] text-slate-500">28 Sep 2026 · SULAEMAN</span>
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 bg-emerald-600" aria-hidden="true" />
+                  <MockButton>Assessment</MockButton>
+                </span>
+              </MockRow>
+              <MockRow last>
+                <span className="min-w-0">
+                  <span className="block text-[11px] font-medium text-slate-900">7 QC Tools</span>
+                  <span className="block text-[9px] text-slate-500">29 Sep 2026 · Belum ditentukan</span>
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 bg-amber-500" aria-hidden="true" />
+                  <MockButton>Assessment</MockButton>
+                </span>
+              </MockRow>
+            </MockPanel>
+          </MockFrame>
+        ),
+      },
       { text: 'Pantau hasilnya.', detail: 'Panel Nilai Pre-test dan Post-test menampilkan semua peserta, termasuk yang belum mengerjakan. Panel Kehadiran per Materi bisa diklik untuk melihat siapa yang belum hadir.' },
       { text: 'Tutup batch bila pengumpulan selesai.', detail: 'Menutup batch menghentikan pengiriman jawaban, termasuk dari QR yang sudah beredar. Batch bisa dibuka lagi bila salah tutup.' },
     ],
@@ -87,7 +248,28 @@ const SECTIONS: Section[] = [
     intro: 'Peserta tidak perlu punya akun. Semuanya dari QR yang dipindai.',
     steps: [
       { text: 'Pindai QR yang diberikan.', detail: 'Halaman akan menampilkan nama materi yang sedang dinilai beserta tanggalnya.' },
-      { text: 'Ketik nama Anda, lalu pilih dari daftar peserta batch.', detail: 'Tidak perlu menghafal kode. Bila ada dua peserta bernama sama, baris nama itu menampilkan kode sebagai pembeda.' },
+      {
+        text: 'Ketik nama Anda, lalu pilih dari daftar peserta batch.',
+        detail: 'Tidak perlu menghafal kode. Bila ada dua peserta bernama sama, baris nama itu menampilkan kode sebagai pembeda.',
+        mock: (
+          <MockFrame label="Halaman peserta OJT">
+            <div className="grid max-w-72 gap-2">
+              <span className="text-[9px] font-semibold tracking-[0.1em] text-slate-500 uppercase">Nama Anda</span>
+              <MockInput placeholder="Ketik nama Anda" />
+              <div className="border border-slate-200 bg-white">
+                <MockRow>
+                  <span className="text-[11px] text-slate-900">Joko Susilo</span>
+                </MockRow>
+                <MockRow last>
+                  <span className="text-[11px] text-slate-900">Siti Aminah</span>
+                  <span className="text-[9px] text-slate-500 tabular-nums">OJT-00004</span>
+                </MockRow>
+              </div>
+              <MockButton tone="dark">Lanjutkan</MockButton>
+            </div>
+          </MockFrame>
+        ),
+      },
       { text: 'Tekan Lanjutkan.' },
       { text: 'Kerjakan sesuai jenisnya.', detail: 'Pre-test dan Post-test memilih jawaban; Feedback memberi nilai tiap aspek; Absensi menandatangani di layar dengan jari.' },
       { text: 'Tekan Kirim.', detail: 'Jawaban yang sudah dikirim tidak dapat diubah lagi.' },
@@ -104,6 +286,30 @@ const SECTIONS: Section[] = [
       {
         text: 'Training yang kehadirannya sudah dicatat bisa dicetak.',
         detail: 'Kehadiran dicatat oleh Human Capital pada hari pelaksanaan. Training yang kehadirannya belum dicatat tetap tampil, tetapi belum bisa dicetak.',
+        mock: (
+          <MockFrame label="Sertifikat Saya">
+            <MockPanel title="Training Saya">
+              <MockRow>
+                <span className="min-w-0">
+                  <span className="block text-[11px] font-medium text-slate-900">7 QC Tools</span>
+                  <span className="block text-[9px] text-slate-500">2 Okt 2026 · Ruang Training</span>
+                  <span className="mt-0.5 block text-[9px] font-semibold text-emerald-700">Hadir</span>
+                </span>
+                <MockButton tone="dark">Cetak sertifikat</MockButton>
+              </MockRow>
+              <MockRow last>
+                <span className="min-w-0">
+                  <span className="block text-[11px] font-medium text-slate-900">Safety Induction</span>
+                  <span className="block text-[9px] text-slate-500">28 Sep 2026 · Kantin Lt. 3</span>
+                  <span className="mt-0.5 block text-[9px] font-semibold text-amber-700">
+                    Kehadiran belum dicatat
+                  </span>
+                </span>
+                <span className="text-[9px] text-slate-400">Belum bisa dicetak</span>
+              </MockRow>
+            </MockPanel>
+          </MockFrame>
+        ),
       },
       { text: 'Tekan Cetak sertifikat, lalu Cetak Sertifikat.', detail: 'Sertifikat memuat kode verifikasi unik. Cetak memakai fitur cetak browser, jadi atur kertas ke A4.' },
     ],
@@ -117,7 +323,24 @@ const SECTIONS: Section[] = [
     steps: [
       { text: 'Buka menu Monitoring Karyawan.' },
       { text: 'Cari karyawan berdasarkan NIK, nama, atau departemen.' },
-      { text: 'Tekan Lihat riwayat untuk melihat daftar training karyawan tersebut.', detail: 'Tiap baris menandai Hadir atau Belum hadir.' },
+      {
+        text: 'Tekan Lihat riwayat untuk melihat daftar training karyawan tersebut.',
+        detail: 'Tiap baris menandai Hadir atau Belum hadir.',
+        mock: (
+          <MockFrame label="Monitoring Karyawan">
+            <MockPanel title="Riwayat training">
+              <MockRow>
+                <span className="text-[11px] text-slate-900">7 QC Tools</span>
+                <MockChip tone="green">Hadir</MockChip>
+              </MockRow>
+              <MockRow last>
+                <span className="text-[11px] text-slate-900">Safety Induction</span>
+                <MockChip>Belum hadir</MockChip>
+              </MockRow>
+            </MockPanel>
+          </MockFrame>
+        ),
+      },
     ],
     note: 'Halaman ini menggantikan rekap manual di spreadsheet: jumlah training per karyawan selama enam bulan terakhir dihitung langsung dari data.',
   },
@@ -406,6 +629,7 @@ export const HowToUse = () => {
                             {step.detail}
                           </span>
                         )}
+                        {step.mock}
                       </span>
                     </li>
                   );
