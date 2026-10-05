@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.js';
 import { SidebarNav } from '../components/SidebarNav.js';
 import { TourButton } from '../components/Tour.js';
-import { IconChevron, IconKeluar } from '../components/icons.js';
+import { IconBrand, IconChevron, IconKeluar } from '../components/icons.js';
 
 const COLLAPSE_KEY = 'training.sidebar.collapsed';
 
@@ -147,20 +147,17 @@ export const DashboardLayout = ({ children }: { children: ReactNode }) => {
         >
           <div className={`flex items-center gap-2.5 ${showLabels ? '' : 'lg:justify-center'}`}>
             {/*
-              The logo is hidden rather than shrunk in the rail. It is about 80px
-              wide at this height and the rail has 64, so leaving it in would clip
-              it mid-letter and read as a rendering fault. It comes back the moment
-              the rail opens.
+              The app mark, not the company logo: the sidebar is the workspace, and
+              the company logo keeps its place on the login page and the printed
+              invitation. It is still hidden in the rail, where a 32px mark plus the
+              expand toggle is more than the 64px width can hold; the rail's own
+              icons are the navigation and the toggle is the only control it needs.
 
-              No wordmark beside it: the logo already says the name, and the alt
-              text carries it for anyone who cannot see the image.
+              No wordmark beside it: the mark carries the name, and the app's name is
+              in the page title and on every printed sheet.
             */}
-            <img
-              src="/logo.png"
-              alt="PT Braja Mukti Cakra"
-              width={1016}
-              height={404}
-              className={`h-8 w-auto shrink-0 object-contain ${showLabels ? '' : 'lg:hidden'}`}
+            <IconBrand
+              className={`h-8 w-8 shrink-0 text-slate-900 ${showLabels ? '' : 'lg:hidden'}`}
             />
             <button
               type="button"
