@@ -21,6 +21,12 @@ type SidebarNavProps = {
   canManageEvents: boolean;
   canViewMyEvents: boolean;
   showLabels: boolean;
+  /**
+   * Called when a group is clicked in the collapsed rail. The rail has no room for
+   * a nested list, so the parent opens the sidebar instead of leaving the click to
+   * go nowhere.
+   */
+  onRequestExpand?: () => void;
 };
 
 const sectionClass = 'px-3 pb-1.5 text-[10px] font-semibold tracking-[0.16em] text-slate-500 uppercase';
@@ -75,7 +81,7 @@ const Chevron = ({ open }: { open: boolean }) => (
  * departId 0300, so those links stay hidden for everyone else. A section with no
  * items is dropped entirely rather than left as a bare heading.
  */
-export const SidebarNav = ({ canManageEvents, canViewMyEvents, showLabels }: SidebarNavProps) => {
+export const SidebarNav = ({ canManageEvents, canViewMyEvents, showLabels, onRequestExpand }: SidebarNavProps) => {
   const location = useLocation();
   const [toggled, setToggled] = useState<Record<string, boolean>>({});
 
@@ -172,15 +178,24 @@ export const SidebarNav = ({ canManageEvents, canViewMyEvents, showLabels }: Sid
                       </button>
                     </div>
                   ) : (
-                    <NavLink
-                      to={item.to}
-                      end={item.end}
-                      title={item.label}
-                      className={({ isActive }) => itemClass(isActive, false)}
+                    /*
+                      The rail has nowhere to put a nested list, so this opens the
+                      sidebar with the group already expanded rather than pointing
+                      at a page and leaving the submenu unreachable.
+                    */
+                    <button
+                      type="button"
+                      title={`${item.label} — buka menu`}
+                      aria-label={`Buka submenu ${item.label}`}
+                      onClick={() => {
+                        setToggled((current) => ({ ...current, [item.to]: true }));
+                        onRequestExpand?.();
+                      }}
+                      className={`w-full ${itemClass(containsRoute(item), false)}`}
                     >
                       <Icon />
                       <span className="sr-only">{item.label}</span>
-                    </NavLink>
+                    </button>
                   )}
 
                   {open && showLabels && (

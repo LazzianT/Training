@@ -31,7 +31,6 @@ export const DashboardLayout = ({ children }: { children: ReactNode }) => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [desktop, setDesktop] = useState(isDesktop);
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSE_KEY) === 'collapsed');
-  const [railHovered, setRailHovered] = useState(false);
 
   useEffect(() => setDrawerOpen(false), [pathname]);
 
@@ -54,28 +53,31 @@ export const DashboardLayout = ({ children }: { children: ReactNode }) => {
     labels, so the preference never follows the user down a breakpoint.
   */
   const railCollapsed = collapsed && desktop;
-
-  /*
-    The collapsed rail opens on hover and on keyboard focus.
-
-    It used to stay shut, and shut meant the submenu was not rendered at all: the
-    OJT group fell back to a plain link and Master Materi became unreachable from
-    the collapsed state. A sidebar that hides entries is not compact, it is
-    broken, and the entries it hides are exactly the ones a filtered rail was
-    supposed to make quicker to reach.
-
-    Expanding on hover rather than on click is the version that needs no
-    explaining: the rail is a shortcut, and a shortcut that costs a click to
-    reveal what it hides is not one.
-  */
-  const expanded = !railCollapsed || railHovered;
-  const showLabels = expanded;
+  const showLabels = !railCollapsed;
 
   const toggleCollapsed = () => {
     setCollapsed((current) => {
       localStorage.setItem(COLLAPSE_KEY, current ? 'expanded' : 'collapsed');
       return !current;
     });
+  };
+
+  /*
+    Called from the rail when a group is clicked.
+
+    A collapsed group row cannot show its submenu, so clicking it would otherwise
+    be a dead end: the entry it leads to is invisible. Opening the sidebar instead
+    means one click gets to it, and the submenu the user was reaching for is what
+    appears.
+
+    This is also why the rail does not open on hover. Hovering while the pointer is
+    already over the sidebar, which is exactly where it is when the collapse button
+    is pressed, re-opened it instantly and made the click look like it had done
+    nothing. Click is the control; nothing else moves the sidebar.
+  */
+  const expandSidebar = () => {
+    setCollapsed(false);
+    localStorage.setItem(COLLAPSE_KEY, 'expanded');
   };
 
   const employee = session?.employee;
@@ -125,26 +127,17 @@ export const DashboardLayout = ({ children }: { children: ReactNode }) => {
       )}
 
       {/*
-        The spacer holds the grid column at the rail's resting width. The aside
-        itself is fixed, so without something occupying the column the content
-        would slide left underneath it. Because the spacer never follows the hover
-        width, opening the rail overlays the page instead of shoving it sideways,
-        which on a hover is the difference between helpful and disorienting.
+        The spacer holds the grid column at the rail's width. The aside itself is
+        fixed, so without something occupying the column the content would slide
+        left underneath it.
       */}
       <div aria-hidden="true" className={`shrink-0 ${railCollapsed ? 'lg:w-16' : 'lg:w-64'}`} />
 
       <aside
         data-tour="sidebar"
-        onMouseEnter={() => setRailHovered(true)}
-        onMouseLeave={() => setRailHovered(false)}
-        // React's onFocus bubbles, so these fire for anything inside too.
-        onFocus={() => setRailHovered(true)}
-        onBlur={() => setRailHovered(false)}
         className={`fixed inset-y-0 left-0 z-30 flex h-dvh max-h-dvh flex-col justify-between overflow-y-auto overflow-x-hidden border-r border-slate-200 bg-white transition-[width,transform] duration-200 print:hidden lg:translate-x-0 ${
-          expanded ? 'w-64' : 'w-64 lg:w-16'
-        } ${expanded && railCollapsed ? 'lg:shadow-2xl' : ''} ${
-          drawerOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
+          showLabels ? 'w-64' : 'w-64 lg:w-16'
+        } ${drawerOpen ? 'translate-x-0' : '-translate-x-full'}`}
         style={{ paddingTop: 'env(safe-area-inset-top)' }}
       >
         <div className="flex min-h-0 flex-1 flex-col px-3 py-5 sm:px-5">
@@ -189,6 +182,7 @@ export const DashboardLayout = ({ children }: { children: ReactNode }) => {
               canManageEvents={isAdmin}
               canViewMyEvents={isAdmin || employee?.isCoordinator === true || employee?.isEventTrainer === true}
               showLabels={showLabels}
+              onRequestExpand={expandSidebar}
             />
           </div>
         </div>
