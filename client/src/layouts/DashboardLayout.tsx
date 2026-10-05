@@ -31,6 +31,7 @@ export const DashboardLayout = ({ children }: { children: ReactNode }) => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [desktop, setDesktop] = useState(isDesktop);
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSE_KEY) === 'collapsed');
+  const [railHovered, setRailHovered] = useState(false);
 
   useEffect(() => setDrawerOpen(false), [pathname]);
 
@@ -48,9 +49,27 @@ export const DashboardLayout = ({ children }: { children: ReactNode }) => {
     return () => query.removeEventListener('change', onChange);
   }, []);
 
-  // Collapsing is a desktop affordance only. On a phone the drawer must always
-  // show labels, so the preference never follows the user down a breakpoint.
-  const showLabels = !collapsed || !desktop;
+  /*
+    Collapsing is a desktop affordance only. On a phone the drawer must always show
+    labels, so the preference never follows the user down a breakpoint.
+  */
+  const railCollapsed = collapsed && desktop;
+
+  /*
+    The collapsed rail opens on hover and on keyboard focus.
+
+    It used to stay shut, and shut meant the submenu was not rendered at all: the
+    OJT group fell back to a plain link and Master Materi became unreachable from
+    the collapsed state. A sidebar that hides entries is not compact, it is
+    broken, and the entries it hides are exactly the ones a filtered rail was
+    supposed to make quicker to reach.
+
+    Expanding on hover rather than on click is the version that needs no
+    explaining: the rail is a shortcut, and a shortcut that costs a click to
+    reveal what it hides is not one.
+  */
+  const expanded = !railCollapsed || railHovered;
+  const showLabels = expanded;
 
   const toggleCollapsed = () => {
     setCollapsed((current) => {
@@ -105,21 +124,43 @@ export const DashboardLayout = ({ children }: { children: ReactNode }) => {
         />
       )}
 
+      {/*
+        The spacer holds the grid column at the rail's resting width. The aside
+        itself is fixed, so without something occupying the column the content
+        would slide left underneath it. Because the spacer never follows the hover
+        width, opening the rail overlays the page instead of shoving it sideways,
+        which on a hover is the difference between helpful and disorienting.
+      */}
+      <div aria-hidden="true" className={`shrink-0 ${railCollapsed ? 'lg:w-16' : 'lg:w-64'}`} />
+
       <aside
         data-tour="sidebar"
-        className={`fixed inset-y-0 left-0 z-30 flex h-dvh max-h-dvh flex-col justify-between overflow-y-auto overflow-x-hidden border-r border-slate-200 bg-white transition-[width,transform] duration-200 print:hidden lg:sticky lg:top-0 lg:translate-x-0 ${
-          showLabels ? 'w-64' : 'w-64 lg:w-16'
-        } ${drawerOpen ? 'translate-x-0' : '-translate-x-full'}`}
+        onMouseEnter={() => setRailHovered(true)}
+        onMouseLeave={() => setRailHovered(false)}
+        // React's onFocus bubbles, so these fire for anything inside too.
+        onFocus={() => setRailHovered(true)}
+        onBlur={() => setRailHovered(false)}
+        className={`fixed inset-y-0 left-0 z-30 flex h-dvh max-h-dvh flex-col justify-between overflow-y-auto overflow-x-hidden border-r border-slate-200 bg-white transition-[width,transform] duration-200 print:hidden lg:translate-x-0 ${
+          expanded ? 'w-64' : 'w-64 lg:w-16'
+        } ${expanded && railCollapsed ? 'lg:shadow-2xl' : ''} ${
+          drawerOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
         style={{ paddingTop: 'env(safe-area-inset-top)' }}
       >
         <div className="flex min-h-0 flex-1 flex-col px-3 py-5 sm:px-5">
           <div className={`flex items-center gap-2.5 ${showLabels ? '' : 'lg:justify-center'}`}>
+            {/*
+              The wordmark is hidden rather than shrunk in the rail. It is about
+              80px wide at this height and the rail has 64, so leaving it in would
+              clip it mid-letter and read as a rendering fault. The mark comes back
+              the moment the rail opens.
+            */}
             <img
               src="/logo.png"
               alt="PT Braja Mukti Cakra"
               width={1016}
               height={404}
-              className="h-8 w-auto shrink-0 object-contain"
+              className={`h-8 w-auto shrink-0 object-contain ${showLabels ? '' : 'lg:hidden'}`}
             />
             <p className={`truncate text-sm font-semibold tracking-tight ${showLabels ? '' : 'lg:sr-only'}`}>
               BMC Training
@@ -129,7 +170,15 @@ export const DashboardLayout = ({ children }: { children: ReactNode }) => {
               onClick={toggleCollapsed}
               aria-expanded={!collapsed}
               aria-label={collapsed ? 'Perlebar sidebar' : 'Ciutkan sidebar'}
-              className="ml-auto hidden h-8 w-8 shrink-0 items-center justify-center text-slate-400 outline-none transition duration-150 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 lg:flex"
+              /*
+                Centred and always visible while collapsed, because it is the only
+                way back out of the rail. It used to sit after the wordmark with
+                ml-auto and was pushed past the edge, so the rail had no visible
+                control at all.
+              */
+              className={`h-8 w-8 shrink-0 items-center justify-center text-slate-400 outline-none transition duration-150 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 ${
+                showLabels ? 'ml-auto hidden lg:flex' : 'mx-auto flex'
+              }`}
             >
               <IconChevron className={`h-4 w-4 transition-transform duration-200 ${collapsed ? '' : 'rotate-180'}`} />
             </button>
