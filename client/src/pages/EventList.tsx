@@ -112,38 +112,43 @@ export const EventList = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <label htmlFor="event-month" className="sr-only">
-            Pilih bulan
-          </label>
-          <select
-            id="event-month"
-            value={period.month}
-            onChange={(change) => setPeriod({ ...period, month: Number(change.target.value) })}
-            className={selectClass()}
-          >
-            {MONTH_NAMES.map((name, index) => (
-              <option key={name} value={index + 1}>
-                {name}
-              </option>
-            ))}
-          </select>
-          <label htmlFor="event-year" className="sr-only">
-            Pilih tahun
-          </label>
-          <select
-            id="event-year"
-            value={period.year}
-            onChange={(change) => setPeriod({ ...period, year: Number(change.target.value) })}
-            className={selectClass()}
-          >
-            {Array.from({ length: 5 }, (_, index) => today.getFullYear() - 2 + index).map((year) => (
-              <option key={year} value={year}>
-                {year}
-              </option>
-            ))}
-          </select>
+          {/* Anchored around the two selects alone, so the tour does not also
+              light up the create button that happens to sit beside them. */}
+          <div data-tour="events.period" className="flex flex-wrap items-center gap-2">
+            <label htmlFor="event-month" className="sr-only">
+              Pilih bulan
+            </label>
+            <select
+              id="event-month"
+              value={period.month}
+              onChange={(change) => setPeriod({ ...period, month: Number(change.target.value) })}
+              className={selectClass()}
+            >
+              {MONTH_NAMES.map((name, index) => (
+                <option key={name} value={index + 1}>
+                  {name}
+                </option>
+              ))}
+            </select>
+            <label htmlFor="event-year" className="sr-only">
+              Pilih tahun
+            </label>
+            <select
+              id="event-year"
+              value={period.year}
+              onChange={(change) => setPeriod({ ...period, year: Number(change.target.value) })}
+              className={selectClass()}
+            >
+              {Array.from({ length: 5 }, (_, index) => today.getFullYear() - 2 + index).map((year) => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              ))}
+            </select>
+          </div>
           <Link
             to="/events/new"
+            data-tour="events.create"
             className="flex h-11 items-center bg-slate-900 px-3.5 text-sm font-semibold text-white outline-none transition duration-150 hover:bg-slate-700 focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
           >
             Buat Acara
@@ -209,7 +214,7 @@ export const EventList = () => {
               ))}
           </div>
 
-          <div className="enter-section mt-4 flex flex-wrap items-end gap-3" style={{ '--enter-delay': '80ms' } as CSSProperties}>
+          <div data-tour="events.filters" className="enter-section mt-4 flex flex-wrap items-end gap-3" style={{ '--enter-delay': '80ms' } as CSSProperties}>
             <div className="min-w-56 flex-1">
               <label htmlFor="event-search" className="block text-xs font-semibold text-slate-700">
                 Cari acara
@@ -266,7 +271,7 @@ export const EventList = () => {
               />
             </div>
           ) : (
-            <div className="enter-section mt-4 overflow-x-auto surface-card" style={{ '--enter-delay': '120ms' } as CSSProperties}>
+            <div data-tour="events.table" className="enter-section mt-4 overflow-x-auto surface-card" style={{ '--enter-delay': '120ms' } as CSSProperties}>
               <table className="w-full min-w-[46rem] border-collapse">
                 <caption className="sr-only">
                   Daftar acara training pada {periodLabel}, {visible.length} baris.

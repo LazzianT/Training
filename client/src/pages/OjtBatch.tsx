@@ -305,7 +305,7 @@ const submitPeserta = async () => {
             {batch.lokasi ? ` · ${batch.lokasi}` : ''}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div data-tour="ojt.status" className="flex flex-wrap items-center gap-2">
           {/*
             Closed can be reopened. Otherwise a mistaken close is permanent, and
             the only way back would be editing the row by hand in SQL.
@@ -377,6 +377,7 @@ const submitPeserta = async () => {
         below the fold and read as the main task.
       */}
       <Panel
+        dataTour="ojt.peserta"
         title="Peserta"
         description="Kode dibuat otomatis. Berikan kode ini kepada peserta untuk mengisi assessment."
         className="enter-section mt-8"
@@ -474,6 +475,7 @@ const submitPeserta = async () => {
         department and the full time range actually fit.
       */}
       <Panel
+        dataTour="ojt.materi"
         title="Materi Batch Ini"
         description="Materi yang sudah dijadwalkan pada batch ini, urut dari tanggal."
         className="enter-section mt-8"
@@ -615,6 +617,7 @@ const submitPeserta = async () => {
 
       {results && results.byMateri.length > 0 && (
         <Panel
+          dataTour="ojt.results"
           title="Nilai Pre-test dan Post-test"
           description="Semua peserta batch ini, termasuk yang belum mengerjakan."
           className="enter-section mt-8"
@@ -678,6 +681,7 @@ const submitPeserta = async () => {
 
       {results && results.attendanceByMateri.length > 0 && (
         <Panel
+          dataTour="ojt.attendance"
           title="Kehadiran per Materi"
           description="Klik materi untuk melihat siapa saja yang hadir dan yang belum."
           className="enter-section mt-8"

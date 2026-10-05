@@ -6,10 +6,12 @@ type PanelProps = {
   action?: ReactNode;
   children: ReactNode;
   className?: string;
+  /** Anchor for the guided tour. See lib/tours.ts. */
+  dataTour?: string;
 };
 
-export const Panel = ({ title, description, action, children, className = '' }: PanelProps) => (
-  <section className={`surface-card ${className}`}>
+export const Panel = ({ title, description, action, children, className = '', dataTour }: PanelProps) => (
+  <section className={`surface-card ${className}`} data-tour={dataTour}>
     <header className="surface-card-header flex flex-wrap items-start justify-between gap-3 px-4 py-3.5 sm:px-5">
       <div>
         <h2 className="text-sm font-semibold tracking-[-0.01em] text-slate-900">{title}</h2>

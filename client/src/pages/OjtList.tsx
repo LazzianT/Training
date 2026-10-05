@@ -120,7 +120,12 @@ export const OjtList = () => {
             On Job Training untuk karyawan baru yang belum terdaftar di HRIS.
           </p>
         </div>
-        <Button type="button" onClick={() => setCreating((value) => !value)} aria-expanded={creating}>
+        <Button
+          type="button"
+          data-tour="ojt.create"
+          onClick={() => setCreating((value) => !value)}
+          aria-expanded={creating}
+        >
           {creating ? 'Tutup' : 'Buat Batch'}
         </Button>
       </header>
@@ -241,7 +246,7 @@ export const OjtList = () => {
           />
         </div>
       ) : (
-        <div className="mt-6 grid gap-4">
+        <div data-tour="ojt.list" className="mt-6 grid gap-4">
           {batches.map((batch, index) => (
             <Link
               key={batch.id}

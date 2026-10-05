@@ -2,11 +2,28 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.js';
 import { SidebarNav } from '../components/SidebarNav.js';
+import { TourButton } from '../components/Tour.js';
 import { IconChevron, IconKeluar } from '../components/icons.js';
 
 const COLLAPSE_KEY = 'training.sidebar.collapsed';
 
 const isDesktop = () => window.matchMedia('(min-width: 1024px)').matches;
+
+/**
+ * Which tour belongs to the page being viewed.
+ *
+ * Kept here rather than in each page so a new page has one place to register, and
+ * so the trigger can live in the layout instead of being repeated twelve times.
+ * Pages without a tour simply get no button.
+ */
+const tourForPath = (pathname: string) => {
+  if (pathname.startsWith('/ojt/materi')) return 'ojt-materi';
+  if (/^\/ojt\/\d+/.test(pathname)) return 'ojt-batch';
+  if (pathname === '/ojt') return 'ojt';
+  if (pathname.startsWith('/events')) return 'events';
+  if (pathname === '/dashboard') return 'welcome';
+  return null;
+};
 
 export const DashboardLayout = ({ children }: { children: ReactNode }) => {
   const { session, signOut } = useAuth();
@@ -57,6 +74,8 @@ export const DashboardLayout = ({ children }: { children: ReactNode }) => {
       ? 'Pengisi Acara'
       : 'Karyawan';
 
+  const tour = tourForPath(pathname);
+
   return (
     <div data-surface="saas" className="min-h-dvh bg-slate-50 text-slate-900 lg:grid lg:grid-cols-[auto_1fr]">
       {/* Mobile only: a strip is unavoidable at this width, so it holds nothing but the toggle. */}
@@ -87,6 +106,7 @@ export const DashboardLayout = ({ children }: { children: ReactNode }) => {
       )}
 
       <aside
+        data-tour="sidebar"
         className={`fixed inset-y-0 left-0 z-30 flex h-dvh max-h-dvh flex-col justify-between overflow-y-auto overflow-x-hidden border-r border-slate-200 bg-white transition-[width,transform] duration-200 print:hidden lg:sticky lg:top-0 lg:translate-x-0 ${
           showLabels ? 'w-64' : 'w-64 lg:w-16'
         } ${drawerOpen ? 'translate-x-0' : '-translate-x-full'}`}
@@ -132,7 +152,7 @@ export const DashboardLayout = ({ children }: { children: ReactNode }) => {
             >
               {initials}
             </span>
-            <div className={`min-w-0 flex-1 ${showLabels ? '' : 'lg:hidden'}`}>
+            <div data-tour="role" className={`min-w-0 flex-1 ${showLabels ? '' : 'lg:hidden'}`}>
               <p className="truncate text-sm font-semibold text-slate-900">{employee?.name ?? '-'}</p>
               <p className="truncate text-xs text-slate-500">
                 {role}
@@ -142,6 +162,7 @@ export const DashboardLayout = ({ children }: { children: ReactNode }) => {
           </div>
           <button
             type="button"
+            data-tour="signout"
             onClick={() => signOut(false)}
             title={showLabels ? undefined : 'Keluar'}
             className={`mt-4 flex h-10 w-full items-center justify-center gap-2 border border-slate-200 bg-white text-sm font-semibold text-slate-700 outline-none transition duration-150 hover:border-slate-900 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 ${
@@ -156,6 +177,11 @@ export const DashboardLayout = ({ children }: { children: ReactNode }) => {
 
       <main className="min-w-0 max-h-dvh overflow-y-auto print:max-h-none print:overflow-visible">
         <div className="mx-auto max-w-[68rem] px-4 py-6 sm:px-6 lg:px-10 lg:py-10 print:max-w-none print:p-0">
+          {tour && (
+            <div className="mb-3 flex justify-end print:hidden">
+              <TourButton id={tour} />
+            </div>
+          )}
           {children}
         </div>
       </main>

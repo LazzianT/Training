@@ -158,6 +158,7 @@ export const OjtJadwalCalendar = ({
   return (
     <>
       <Panel
+        dataTour="ojt.jadwal"
         title="Jadwal Materi"
         description="Klik tanggal untuk mengisi materi dan pengisinya."
         className="enter-section mt-8"

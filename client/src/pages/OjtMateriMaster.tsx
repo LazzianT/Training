@@ -173,12 +173,12 @@ export const OjtMateriMasterPage = () => {
             daftar ini.
           </p>
         </div>
-        <Button type="button" onClick={openCreate}>
+        <Button type="button" data-tour="materi.create" onClick={openCreate}>
           Tambah Materi
         </Button>
       </header>
 
-      <div className="enter-section mt-6 flex flex-wrap items-end justify-between gap-3">
+      <div data-tour="materi.search" className="enter-section mt-6 flex flex-wrap items-end justify-between gap-3">
         <div className="w-full max-w-xs">
           <Field id="ojt-cari-materi" label="Cari materi">
             {(field) => (
@@ -223,7 +223,7 @@ export const OjtMateriMasterPage = () => {
               }
             />
           ) : (
-            <ul className="divide-y divide-slate-100">
+            <ul data-tour="materi.list" className="divide-y divide-slate-100">
               {filtered.map((item, index) => {
                 const busy = busyId === item.id;
                 return (

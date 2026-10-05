@@ -17,6 +17,7 @@ import { OjtMateriMasterPage } from './pages/OjtMateriMaster.js';
 import { OjtMateriQuestionsPage } from './pages/OjtMateriQuestions.js';
 import { OjtBatchPage } from './pages/OjtBatch.js';
 import { OjtAccessPage } from './pages/OjtAccess.js';
+import { TourProvider } from './components/Tour.js';
 
 const RequireAuth = ({ children }: { children: ReactElement }) => {
   const { session } = useAuth();
@@ -32,24 +33,26 @@ const protectedPage = (element: ReactElement) => (
 );
 
 export const App = () => (
-  <Routes>
-    <Route path="/login" element={<Login />} />
-    <Route path="/assessment/access/:token" element={<AssessmentAccess />} />
-    {/* Public: an OJT participant reaches this by scanning a QR and has no account. */}
-    <Route path="/ojt/access/:token" element={<OjtAccessPage />} />
-    <Route path="/dashboard" element={protectedPage(<Dashboard />)} />
-    <Route path="/employee-monitoring" element={protectedPage(<EmployeeMonitoring />)} />
-    <Route path="/ojt" element={protectedPage(<OjtList />)} />
+  <TourProvider>
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route path="/assessment/access/:token" element={<AssessmentAccess />} />
+      {/* Public: an OJT participant reaches this by scanning a QR and has no account. */}
+      <Route path="/ojt/access/:token" element={<OjtAccessPage />} />
+      <Route path="/dashboard" element={protectedPage(<Dashboard />)} />
+      <Route path="/employee-monitoring" element={protectedPage(<EmployeeMonitoring />)} />
+      <Route path="/ojt" element={protectedPage(<OjtList />)} />
       <Route path="/ojt/materi" element={protectedPage(<OjtMateriMasterPage />)} />
       {/* Literal before the parameter, so this is not read as a batch id. */}
       <Route path="/ojt/materi/:materiId/soal" element={protectedPage(<OjtMateriQuestionsPage />)} />
       <Route path="/ojt/:batchId" element={protectedPage(<OjtBatchPage />)} />
-    <Route path="/my-events" element={protectedPage(<MyEvents />)} />
-    <Route path="/my-events/:eventId/questions" element={protectedPage(<QuestionEditor />)} />
-  <Route path="/events" element={protectedPage(<EventList />)} />
-    <Route path="/events/new" element={protectedPage(<EventForm />)} />
-    <Route path="/events/:id/invitation" element={protectedPage(<EventInvitation />)} />
-    <Route path="/events/:id" element={protectedPage(<EventDetail />)} />
-    <Route path="*" element={<Navigate to="/dashboard" replace />} />
-  </Routes>
+      <Route path="/my-events" element={protectedPage(<MyEvents />)} />
+      <Route path="/my-events/:eventId/questions" element={protectedPage(<QuestionEditor />)} />
+      <Route path="/events" element={protectedPage(<EventList />)} />
+      <Route path="/events/new" element={protectedPage(<EventForm />)} />
+      <Route path="/events/:id/invitation" element={protectedPage(<EventInvitation />)} />
+      <Route path="/events/:id" element={protectedPage(<EventDetail />)} />
+      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+    </Routes>
+  </TourProvider>
 );

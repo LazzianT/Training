@@ -117,6 +117,7 @@ export const Dashboard = () => {
         <>
           <section
             id="ringkasan"
+            data-tour="dashboard.stats"
             className="enter-section mt-6 grid scroll-mt-6 gap-4 sm:grid-cols-2 lg:grid-cols-4"
             style={{ '--enter-delay': '0ms' } as CSSProperties}
           >
@@ -153,6 +154,7 @@ export const Dashboard = () => {
             <Panel
               title="Kalender Training"
               description="Sebaran acara pada periode terpilih. Klik tanggal untuk melihat detail."
+              dataTour="dashboard.calendar"
             >
               <TrainingCalendar year={year} month={month} events={data.monthEvents} />
             </Panel>
