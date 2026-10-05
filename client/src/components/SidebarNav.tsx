@@ -2,11 +2,13 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { useState, type ComponentType } from 'react';
 import {
   IconAcaraSaya,
+  IconBantuan,
   IconBuat,
   IconDaftar,
   IconMonitoring,
   IconOjt,
   IconRingkasan,
+  IconSertifikat,
 } from './icons.js';
 
 type IconType = ComponentType<{ className?: string }>;
@@ -98,7 +100,15 @@ export const SidebarNav = ({ canManageEvents, canViewMyEvents, showLabels, onReq
   const isOpen = (item: NavItem) => toggled[item.to] ?? containsRoute(item);
 
   const sections: NavSection[] = [
-    { heading: 'Utama', items: [{ label: 'Ringkasan', to: '/dashboard', icon: IconRingkasan, end: true }] },
+    {
+      heading: 'Utama',
+      items: [
+        { label: 'Ringkasan', to: '/dashboard', icon: IconRingkasan, end: true },
+        // Personal to whoever is signed in, so every role gets them.
+        { label: 'Sertifikat Saya', to: '/certificates', icon: IconSertifikat },
+        { label: 'Cara Pakai', to: '/how-to-use', icon: IconBantuan },
+      ],
+    },
     {
       heading: 'Event',
       items: canManageEvents

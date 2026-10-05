@@ -11,6 +11,7 @@ import { employeeRouter } from './modules/employee/employee.routes.js';
 import { eventRouter } from './modules/event/event.routes.js';
 import { assessmentRouter } from './modules/assessment/assessment.routes.js';
 import { ojtRouter, ojtPublicRouter } from './modules/ojt/ojt.routes.js';
+import { certificateRouter } from './modules/certificate/certificate.routes.js';
 
 export const createApp = () => {
   const app = express();
@@ -42,6 +43,7 @@ export const createApp = () => {
   app.use('/api/auth', authRouter);
   app.use('/api/dashboard', dashboardRouter);
   app.use('/api/employees', employeeRouter);
+  app.use('/api/certificates', certificateRouter);
   app.use('/api/events', eventRouter);
   app.use('/api/assessment', assessmentRouter);
   app.use('/api/ojt', ojtPublicRouter);

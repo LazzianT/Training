@@ -60,6 +60,26 @@ export const IconChevron = ({ className = base }: IconProps) => (
 );
 
 /**
+ * A certificate: a sheet with a ribbon hanging off it. Drawn rather than borrowed,
+ * like the rest, so the sidebar keeps one voice.
+ */
+export const IconSertifikat = ({ className = base }: IconProps) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className={className} aria-hidden="true">
+    <rect x="3.5" y="3.5" width="17" height="12" strokeLinecap="square" />
+    <path d="M7 7.5h10M7 10.5h6" strokeLinecap="square" />
+    <path d="M9.5 15.5v5l2.5-1.6 2.5 1.6v-5" strokeLinecap="square" />
+  </svg>
+);
+
+export const IconBantuan = ({ className = base }: IconProps) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className={className} aria-hidden="true">
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="M9.6 9.6a2.5 2.5 0 1 1 3.3 2.4c-.8.3-1.4.9-1.4 1.7v.4" strokeLinecap="square" />
+    <path d="M11.5 17.2h.5" strokeLinecap="round" strokeWidth="2" />
+  </svg>
+);
+
+/**
  * The app's mark, for the sidebar header. Not a replacement for the company logo,
  * which stays on the login page and on the printed invitation where it belongs.
  *

@@ -450,3 +450,54 @@ export type OjtQuestion = {
   image: string | null;
   options: Record<string, string>;
 };
+
+/** One training the signed-in employee is registered for. */
+export type MyCertificate = {
+  eventId: number;
+  judul: string;
+  /** YYYY-MM-DD */
+  tanggal: string;
+  waktuMulai: string | null;
+  waktuSelesai: string | null;
+  eventStatus: string;
+  ruang: string | null;
+  pengisi: string | null;
+  namaPeserta: string | null;
+  departemen: string | null;
+  attendanceStatus: 'not_recorded' | 'present' | 'absent';
+  /**
+   * Attendance recorded. The only thing that makes a certificate printable, since
+   * the schema carries no pass mark and a training can be completed without ever
+   * sitting the post-test.
+   */
+  hadir: boolean;
+  /** Null until the employee prints it; issuing is what creates the row. */
+  certificate: {
+    id: number;
+    verificationCode: string;
+    issuedAt: string | null;
+    status: 'valid' | 'expired' | 'revoked';
+  } | null;
+};
+
+/**
+ * The certificate as returned by the issue call.
+ *
+ * A separate type from the list's `certificate`, which carries a nullable
+ * `issuedAt` because a row could predate that column. Issuing always sets it, so
+ * the page that prints should not have to prove it is there.
+ */
+export type IssuedCertificate = {
+  id: number;
+  eventId: number;
+  judul: string;
+  tanggal: string;
+  ruang: string | null;
+  namaPeserta: string | null;
+  departemen: string | null;
+  verificationCode: string;
+  issuedAt: string;
+  status: 'valid' | 'expired' | 'revoked';
+  /** False when a certificate already existed, which makes retrying harmless. */
+  created: boolean;
+};
