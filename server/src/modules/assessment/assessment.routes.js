@@ -23,7 +23,7 @@ assessmentRouter.get('/access/:token', async (request, response, next) => {
   try {
     const access = await resolveQrAccess(request.params.token);
     if (!access) return response.status(404).json({ error: { code: 'QR_EXPIRED', message: 'QR tidak berlaku.' } });
-    response.json({ eventId: access.event_id, purpose: access.purpose, title: access.judul, date: access.tgl, room: access.nama_ruangan, expiresAt: access.expires_at, isOjt: access.kind === 'ojt' });
+    response.json({ eventId: access.event_id, purpose: access.purpose, title: access.judul, date: access.tgl, room: access.nama_ruangan, expiresAt: access.expires_at });
   } catch (error) {
     if (error?.number === 547 || error?.number === 2601 || error?.number === 2627) {
       return response.status(409).json({ error: { code: 'PUBLISH_FAILED', message: 'Test belum dapat dipublikasikan. Pastikan test memiliki soal dan struktur database assessment sudah diperbarui.' } });

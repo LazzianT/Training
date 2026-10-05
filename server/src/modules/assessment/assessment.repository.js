@@ -65,9 +65,19 @@ export const listQrAccess = async (eventId) => {
 };
 
 export const resolveQrAccess = async (token) => {
+  /*
+    No `kind` column here.
+
+    training_acara.kind was how the training chain told its own rows apart from the
+    OJT rows that used to borrow it. OJT got its own tables, the column was dropped,
+    and this select kept asking for it, so every participant link for the training
+    chain failed on "Invalid column name 'kind'" from the day of that migration
+    onwards. Nothing read the flag it fed either: the route passed it on as isOjt
+    and no client code has ever looked at it.
+  */
   const { recordset } = await query(`
     SELECT TOP 1 q.id, q.event_id, q.purpose, a.judul, a.tgl, a.waktu_mulai, a.waktu_selesai,
-      r.nama_ruangan, q.expires_at, q.max_uses, q.used_count, a.kind
+           r.nama_ruangan, q.expires_at, q.max_uses, q.used_count
     FROM dbo.training_qr_access q
     JOIN dbo.training_acara a ON a.id = q.event_id
     LEFT JOIN dbo.training_ruang_acara r ON r.id = a.ruang_id
