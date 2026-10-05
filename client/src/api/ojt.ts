@@ -122,6 +122,25 @@ export const fetchOjtAssessment = (token: string, batchId: number, signal?: Abor
     signal,
   });
 
+/**
+ * Retires every live code for one material and purpose.
+ *
+ * Issuing a code no longer does this on its own, and that reversal is the point:
+ * it used to mean a printed code died the next time somebody opened the dialog. A
+ * scan needs only one live code to resolve, so the cost is that several can
+ * coexist until this is called.
+ */
+export const revokeOjtMateriQr = (
+  token: string,
+  batchId: number,
+  materiId: number,
+  purpose: 'pre_test' | 'post_test' | 'feedback' | 'attendance',
+) =>
+  call<{ revoked: number }>(
+    `/api/ojt/admin/batches/${batchId}/materi/${materiId}/qr?purpose=${encodeURIComponent(purpose)}`,
+    { ...admin(token), method: 'DELETE' },
+  );
+
 export const fetchOjtMateriTestSet = (token: string, materiId: number, signal?: AbortSignal) =>
   call<OjtMateriTestSet>(`/api/ojt/admin/materi/${materiId}/test-set`, { ...admin(token), signal });
 

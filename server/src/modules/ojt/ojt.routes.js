@@ -41,6 +41,7 @@ import {
   publishTestSet,
   recordAttendance,
   resolveQr,
+  revokeQrFor,
   submitAnswers,
   submitFeedback,
   unpublishTestSet,
@@ -621,6 +622,33 @@ ojtRouter.get('/batches/:id/results', async (request, response, next) => {
   }
   try {
     response.status(200).json(await getResults(parsedId.data));
+  } catch (error) {
+    next(error);
+  }
+});
+
+/*
+  Revoking is its own action.
+
+  Issuing a code used to revoke the previous one for the same material and purpose,
+  so a printed code died the next time somebody opened the dialog, and since only
+  the hash is stored it could not be shown again. Retiring a code is now something
+  asked for rather than a side effect of looking.
+*/
+ojtRouter.delete('/batches/:id/materi/:materiId/qr', async (request, response, next) => {
+  if (!requireHumanCapital(response, response.locals.actor)) return;
+  const parsedId = idParam.safeParse(request.params.id);
+  const materiId = idParam.safeParse(request.params.materiId);
+  const purpose = z
+    .enum(['pre_test', 'post_test', 'feedback', 'attendance'])
+    .safeParse(request.query.purpose);
+  if (!parsedId.success || !materiId.success || !purpose.success) {
+    fail(response, 400, 'VALIDATION_ERROR', 'Permintaan tidak valid.');
+    return;
+  }
+  try {
+    const revoked = await revokeQrFor(parsedId.data, materiId.data, purpose.data);
+    response.status(200).json({ revoked });
   } catch (error) {
     next(error);
   }

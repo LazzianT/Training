@@ -309,11 +309,36 @@ const run = async () => {
     body: JSON.stringify({ purpose: 'pre_test' }),
   });
   expect('second pre-test QR issued', qrPreAgain.status, 201);
-  const revoked = await query(
+  /*
+    Issuing no longer retires the previous code. It used to, and the effect was that
+    a printed code died the next time somebody opened the dialog, with nothing on
+    screen to say so and no way to get that code back, since only its hash is kept.
+  */
+  const liveAfterSecond = await query(
     'SELECT COUNT(*) AS n FROM dbo.training_ojt_qr_access WHERE batch_id = @b AND materi_id = @m AND purpose = @p AND revoked_at IS NULL;',
     (r) => r.input('b', batchId).input('m', idA).input('p', 'pre_test'),
   );
-  expect('only one live pre-test QR', Number(revoked.recordset[0].n), 1);
+  expect('issuing again leaves both codes live', Number(liveAfterSecond.recordset[0].n), 2);
+
+  const firstStillWorks = await call(`/api/ojt/access/${qrPre.body.token}`, {});
+  expect('the first code still resolves', firstStillWorks.status, 200);
+
+  const revokedNow = await call(`/api/ojt/admin/batches/${batchId}/materi/${idA}/qr?purpose=pre_test`, admin, {
+    method: 'DELETE',
+  });
+  expect('revoking retires every live code', revokedNow.body?.revoked, 2);
+
+  const refused = await call(`/api/ojt/access/${qrPre.body.token}`, {});
+  expect('a revoked code is refused', refused.status, 404);
+  expect('and says so', refused.body?.error?.code, 'QR_EXPIRED');
+
+  // Reissue, because the rest of the run needs a working pre-test code.
+  const reissued = await call(`/api/ojt/admin/batches/${batchId}/materi/${idA}/qr`, admin, {
+    method: 'POST',
+    body: JSON.stringify({ purpose: 'pre_test' }),
+  });
+  expect('reissued after revoking', reissued.status, 201);
+  qrPreAgain.body.token = reissued.body.token;
 
   const qrWrongMateri = await call(`/api/ojt/admin/batches/${batchId}/materi/999999/qr`, admin, {
     method: 'POST',

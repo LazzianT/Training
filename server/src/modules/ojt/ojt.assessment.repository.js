@@ -243,27 +243,21 @@ export const unpublishTestSet = async (testSetId) => {
 /* ------------------------------------------------------------------------ QR */
 
 /**
- * Issues a QR for one material of one batch, revoking the previous one for that
- * same combination.
+ * Issues a QR for one material of one batch.
  *
- * Previously every click minted another code valid for thirty days, so a batch
- * ended up with a drawer of codes that all still worked and no way to tell which
- * was the current one. Revoking on issue leaves exactly one live code per
- * material and purpose, which is the only one anyone should be holding.
+ * Issuing no longer revokes the previous code, and that reversal matters. It used
+ * to, on the reasoning that only one code should be live at a time. The effect was
+ * that a code already printed and stuck to a wall died the moment somebody opened
+ * the dialog again to look at something, with nothing on screen to say so and no
+ * way to get that exact code back: only its hash is stored, so it cannot be shown
+ * a second time.
+ *
+ * Revoking is now an explicit action. Several live codes for one material is a
+ * smaller problem than one silently killed code, and every scan only ever needs
+ * one of them to resolve.
  */
 export const createQr = async (batchId, materiId, purpose) => {
   const rawToken = randomBytes(32).toString('base64url');
-  await query(
-    `UPDATE dbo.training_ojt_qr_access
-     SET revoked_at = SYSUTCDATETIME()
-     WHERE batch_id = @batchId AND materi_id = @materiId AND purpose = @purpose
-       AND revoked_at IS NULL;`,
-    (request) =>
-      request
-        .input('batchId', sql.Int, batchId)
-        .input('materiId', sql.Int, materiId)
-        .input('purpose', sql.VarChar(30), purpose),
-  );
   await query(
     `INSERT INTO dbo.training_ojt_qr_access (id, batch_id, materi_id, token_hash, purpose, expires_at, max_uses)
      VALUES (@id, @batchId, @materiId, @tokenHash, @purpose, DATEADD(day, 30, SYSUTCDATETIME()), 10000);`,
@@ -276,6 +270,44 @@ export const createQr = async (batchId, materiId, purpose) => {
         .input('purpose', sql.VarChar(30), purpose),
   );
   return rawToken;
+};
+
+/**
+ * Revokes every live code for one material and purpose.
+ *
+ * The deliberate counterpart to issuing, which no longer does this on its own. A
+ * code that has been shared too widely, or printed and then replaced, is retired
+ * here and only here.
+ */
+export const revokeQrFor = async (batchId, materiId, purpose) => {
+  const result = await query(
+    `UPDATE dbo.training_ojt_qr_access
+     SET revoked_at = SYSUTCDATETIME()
+     WHERE batch_id = @batchId AND materi_id = @materiId AND purpose = @purpose
+       AND revoked_at IS NULL;`,
+    (request) =>
+      request
+        .input('batchId', sql.Int, batchId)
+        .input('materiId', sql.Int, materiId)
+        .input('purpose', sql.VarChar(30), purpose),
+  );
+  return result.rowsAffected?.[0] ?? 0;
+};
+
+/** How many codes are still live, so the dialog can say so before offering to revoke. */
+export const countLiveQr = async (batchId) => {
+  const result = await query(
+    `SELECT materi_id, purpose, COUNT(*) AS n
+     FROM dbo.training_ojt_qr_access
+     WHERE batch_id = @batchId AND revoked_at IS NULL AND expires_at > SYSUTCDATETIME()
+     GROUP BY materi_id, purpose;`,
+    (request) => request.input('batchId', sql.Int, batchId),
+  );
+  return result.recordset.map((row) => ({
+    materiId: row.materi_id,
+    purpose: row.purpose,
+    count: Number(row.n),
+  }));
 };
 
 /**

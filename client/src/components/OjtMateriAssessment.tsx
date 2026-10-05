@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { OjtAssessmentSummary, OjtBatchStatus } from '@training/contracts';
 import { ApiRequestError } from '../api/auth.js';
-import { createOjtMateriQr } from '../api/ojt.js';
+import { createOjtMateriQr, revokeOjtMateriQr } from '../api/ojt.js';
 import { Button, EmptyState } from './ui/index.js';
 import { Modal } from './Modal.js';
 import { CopyButton, useToast } from './Toast.js';
+import { useConfirm } from './ConfirmDialog.js';
 import { shortDate } from '../lib/date.js';
 
 const PURPOSES = [
@@ -36,6 +37,7 @@ type Props = {
  */
 export const OjtMateriAssessment = ({ token, batchId, batchStatus, entry, onClose }: Props) => {
   const { push } = useToast();
+  const confirm = useConfirm();
   const [busy, setBusy] = useState<string | null>(null);
   const [qr, setQr] = useState<{ purpose: string; url: string } | null>(null);
 
@@ -51,6 +53,43 @@ export const OjtMateriAssessment = ({ token, batchId, batchStatus, entry, onClos
       push({
         tone: 'danger',
         title: 'QR gagal dibuat',
+        description: error instanceof ApiRequestError ? error.message : undefined,
+      });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  /*
+    Retiring every code for this material, all four purposes at once.
+
+    Deliberately blunt and deliberately explicit: it is the act that can strand a
+    printed sheet, so it asks first and says exactly what it will do. Making it
+    per-purpose would mean four controls for a job that is almost always "the old
+    ones are done".
+  */
+  const revokeAll = async () => {
+    if (!entry) return;
+    const ok = await confirm({
+      title: 'Cabut semua kode materi ini?',
+      description:
+        'Seluruh kode pre-test, post-test, feedback, dan absensi untuk materi ini berhenti berlaku, termasuk yang sudah dicetak dan ditempel. Peserta yang memindainya akan ditolak.',
+      confirmLabel: 'Cabut semua',
+      tone: 'danger',
+    });
+    if (!ok) return;
+
+    setBusy('revoke');
+    try {
+      for (const purpose of PURPOSES) {
+        await revokeOjtMateriQr(token, batchId, entry.materiId, purpose.value);
+      }
+      setQr(null);
+      push({ tone: 'success', title: 'Kode lama dicabut' });
+    } catch (error) {
+      push({
+        tone: 'danger',
+        title: 'Gagal mencabut kode',
         description: error instanceof ApiRequestError ? error.message : undefined,
       });
     } finally {
@@ -163,9 +202,21 @@ export const OjtMateriAssessment = ({ token, batchId, batchStatus, entry, onClos
             })}
           </div>
           <p className="mt-2 text-xs text-slate-500">
-            Membuat kode baru untuk bahan yang sama akan mencabut kode sebelumnya, jadi hanya satu yang
-            berlaku.
+            Kode yang sudah dibuat tetap berlaku sampai dicabut, jadi mencetak ulang tidak mematikan
+            kode yang sudah di dinding. Cabut kode lama hanya bila memang ingin dihentikan.
           </p>
+
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              disabled={busy !== null}
+              onClick={revokeAll}
+              className="text-xs font-semibold text-red-700 underline underline-offset-4 outline-none transition duration-150 hover:text-red-800 disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
+            >
+              Cabut semua kode materi ini
+            </button>
+            <span className="text-xs text-slate-500">Empat tujuan sekaligus.</span>
+          </div>
         </div>
 
         {qr && (
