@@ -14,6 +14,13 @@
 # Documentation is kept out of the repository; the code is what is published.
 *.md
 
+# Project context for the team is the one exception: it is a working agreement
+# for anyone touching this repo, not report material.
+!AGENTS.md
+
+# KKP report drafts in Word format stay local, same as the .md drafts above.
+*.doc
+
 # Reference screenshots kept at the repo root for the report.
 # LoginImage.jpeg and bmc2.png are byte-identical duplicates of the assets
 # in client/public/, so committing them again would only waste space.
