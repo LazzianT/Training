@@ -129,6 +129,7 @@ export const MyEvents = () => {
   const { session, signOut } = useAuth();
   const [events, setEvents] = useState<EventSummary[] | null>(null);
   const [message, setMessage] = useState('');
+  const [messageTone, setMessageTone] = useState<'info' | 'warning' | 'danger'>('info');
   const [qr, setQr] = useState<{ eventId: number; purpose: QrAccess['purpose']; url: string } | null>(null);
   const [results, setResults] = useState<Record<number, AssessmentResults>>({});
   const [assessmentReady, setAssessmentReady] = useState<Record<number, boolean>>({});
@@ -151,7 +152,10 @@ export const MyEvents = () => {
       setAssessmentReady(Object.fromEntries(readiness));
     }).catch((error: unknown) => {
       if (error instanceof ApiRequestError && error.status === 401) signOut();
-      else setMessage(error instanceof ApiRequestError ? error.message : 'Acara saya gagal dimuat.');
+      else {
+        setMessageTone('danger');
+        setMessage(error instanceof ApiRequestError ? error.message : 'Acara saya gagal dimuat.');
+      }
     });
   }, [session, signOut]);
 
@@ -166,8 +170,10 @@ export const MyEvents = () => {
           what made it wrong once the server started sending absolute links.
         */
         setQr({ eventId, purpose, url: item.url });
+      setMessageTone('info');
       setMessage(`QR ${purpose} dibuat.`);
     } catch (error) {
+      setMessageTone(error instanceof ApiRequestError && error.status === 409 ? 'warning' : 'danger');
       setMessage(error instanceof ApiRequestError ? error.message : 'QR gagal dibuat.');
     }
   };
@@ -181,6 +187,7 @@ export const MyEvents = () => {
       setResults((current) => ({ ...current, [eventId]: data }));
     } catch (error) {
       setResultFor(null);
+      setMessageTone('danger');
       setMessage(error instanceof ApiRequestError ? error.message : 'Hasil gagal dimuat.');
     }
   };
@@ -202,7 +209,16 @@ export const MyEvents = () => {
       </header>
 
       {message && (
-        <p role="status" className="mt-5 break-all border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700">
+        <p
+          role={messageTone === 'danger' ? 'alert' : 'status'}
+          className={`mt-5 break-all border px-3 py-2.5 text-sm ${
+            messageTone === 'warning'
+              ? 'border-amber-200 bg-amber-50 text-amber-900'
+              : messageTone === 'danger'
+                ? 'border-red-200 bg-red-50 text-red-700'
+                : 'border-slate-200 bg-white text-slate-700'
+          }`}
+        >
           {message}
         </p>
       )}
