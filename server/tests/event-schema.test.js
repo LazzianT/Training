@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createEventBody } from '../src/modules/event/event.schema.js';
+import { attendanceBody, createEventBody } from '../src/modules/event/event.schema.js';
 
 const valid = {
   judul: 'Workshop Keamanan Informasi',
@@ -14,6 +14,17 @@ const valid = {
     name: 'Pengisi Internal',
   },
 };
+
+describe('attendanceBody', () => {
+  it('accepts unique participants with present or absent status', () => {
+    expect(attendanceBody.safeParse({ entries: [{ nip: '1', status: 'present' }, { nip: '2', status: 'absent' }] }).success).toBe(true);
+  });
+
+  it('rejects duplicate participants and unknown statuses', () => {
+    expect(attendanceBody.safeParse({ entries: [{ nip: '1', status: 'present' }, { nip: '1', status: 'absent' }] }).success).toBe(false);
+    expect(attendanceBody.safeParse({ entries: [{ nip: '1', status: 'unknown' }] }).success).toBe(false);
+  });
+});
 
 describe('createEventBody', () => {
   it('accepts a well formed event', () => {

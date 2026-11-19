@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import { Link } from 'react-router-dom';
-import type { EventStatus, EventSummary } from '@training/contracts';
+import type { EventDetail, EventStatus, EventSummary } from '@training/contracts';
 import { EVENT_STATUSES, EVENT_STATUS_LABEL } from '@training/contracts';
 import { useAuth } from '../auth/AuthContext.js';
-import { fetchEvents } from '../api/events.js';
+import { createEventQr, fetchEvent, fetchEvents, saveAttendance } from '../api/events.js';
 import { ApiRequestError } from '../api/auth.js';
 import { EmptyState, inputClass, selectClass } from '../components/ui/index.js';
 import { StatusBadge } from '../components/StatusBadge.js';
@@ -38,6 +39,17 @@ export const EventList = () => {
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState<EventStatus | 'all'>('all');
   const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'tgl', dir: 'asc' });
+  const [attendanceEvent, setAttendanceEvent] = useState<EventSummary | null>(null);
+  const [attendanceTab, setAttendanceTab] = useState<'qr' | 'manual'>('qr');
+  const [qr, setQr] = useState<{ title: string; url: string } | null>(null);
+  const [qrLoadingId, setQrLoadingId] = useState<number | null>(null);
+  const [qrError, setQrError] = useState('');
+  const [manualEvent, setManualEvent] = useState<EventDetail | null>(null);
+  const [manualStatuses, setManualStatuses] = useState<Record<string, 'present' | 'absent'>>({});
+  const [manualLoading, setManualLoading] = useState(false);
+  const [manualSaving, setManualSaving] = useState(false);
+  const [manualError, setManualError] = useState('');
+  const [manualNotice, setManualNotice] = useState('');
 
   useEffect(() => {
     if (!session) return;
@@ -86,6 +98,72 @@ export const EventList = () => {
       })),
     };
   }, [events]);
+
+  const openAttendance = (event: EventSummary) => {
+    setAttendanceEvent(event);
+    setAttendanceTab('qr');
+    setQr(null);
+    setQrError('');
+    setManualEvent(null);
+    setManualStatuses({});
+    setManualError('');
+    setManualNotice('');
+  };
+
+  const generateAttendanceQr = async () => {
+    if (!session || !attendanceEvent || qrLoadingId !== null) return;
+    setQrError('');
+    setQrLoadingId(attendanceEvent.id);
+    try {
+      const access = await createEventQr(session.accessToken, attendanceEvent.id, 'attendance');
+      if (!access.url || !/^https?:\/\//i.test(access.url)) throw new Error('Tautan QR tidak valid. Periksa alamat aplikasi publik pada konfigurasi server.');
+      setQr({ title: attendanceEvent.judul, url: access.url });
+    } catch (err) {
+      setQrError(err instanceof ApiRequestError ? err.message : 'QR absensi gagal dibuat. Coba lagi.');
+    } finally {
+      setQrLoadingId(null);
+    }
+  };
+
+  const openManualAttendance = async () => {
+    if (!session || !attendanceEvent || manualLoading) return;
+    setAttendanceTab('manual');
+    if (manualEvent) return;
+    setManualLoading(true);
+    setManualError('');
+    try {
+      const detail = await fetchEvent(session.accessToken, attendanceEvent.id);
+      setManualEvent(detail);
+      setManualStatuses(Object.fromEntries(detail.participants.flatMap((participant) =>
+        participant.attendanceStatus === 'not_recorded' ? [] : [[participant.nip, participant.attendanceStatus]],
+      )));
+    } catch (err) {
+      setManualError(err instanceof ApiRequestError ? err.message : 'Daftar peserta gagal dimuat.');
+    } finally {
+      setManualLoading(false);
+    }
+  };
+
+  const saveManualAttendance = async () => {
+    if (!session || !attendanceEvent || !manualEvent || manualSaving) return;
+    const entries = Object.entries(manualStatuses).map(([nip, status]) => ({ nip, status }));
+    if (!entries.length) { setManualError('Pilih status kehadiran minimal satu peserta.'); return; }
+    setManualSaving(true);
+    setManualError('');
+    setManualNotice('');
+    try {
+      await saveAttendance(session.accessToken, attendanceEvent.id, entries);
+      setManualError('');
+      setManualNotice('Absensi berhasil disimpan.');
+      setManualEvent({ ...manualEvent, participants: manualEvent.participants.map((participant) => ({
+        ...participant, attendanceStatus: manualStatuses[participant.nip] ?? participant.attendanceStatus,
+      })) });
+    } catch (err) {
+      setManualError(err instanceof ApiRequestError ? err.message : 'Absensi gagal disimpan. Pilihan tetap tersimpan.');
+    } finally {
+      setManualSaving(false);
+    }
+  };
 
   const toggleSort = (key: SortKey) =>
     setSort((current) =>
@@ -347,12 +425,21 @@ export const EventList = () => {
                           <StatusBadge status={event.status} label={EVENT_STATUS_LABEL[event.status]} />
                         </td>
                         <td className="px-3 py-3 text-right align-top">
-                          <Link
-                            to={`/events/${event.id}/invitation`}
-                            className="text-xs font-semibold text-slate-900 underline underline-offset-4 outline-none transition duration-150 hover:text-slate-600 focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
-                          >
-                            Cetak undangan
-                          </Link>
+                          <div className="flex flex-col items-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => openAttendance(event)}
+                              className="text-xs font-semibold text-slate-900 underline underline-offset-4 outline-none transition duration-150 hover:text-slate-600 focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60"
+                            >
+                              Absensi
+                            </button>
+                            <Link
+                              to={`/events/${event.id}/invitation`}
+                              className="text-xs font-semibold text-slate-900 underline underline-offset-4 outline-none transition duration-150 hover:text-slate-600 focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
+                            >
+                              Cetak undangan
+                            </Link>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -362,6 +449,44 @@ export const EventList = () => {
             </div>
           )}
         </>
+      )}
+      {attendanceEvent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setAttendanceEvent(null); }}>
+          <style>{'@media print { body * { visibility: hidden !important; } #attendance-qr-print, #attendance-qr-print * { visibility: visible !important; } #attendance-qr-print { position: fixed; inset: 0; margin: auto; width: max-content; height: max-content; box-shadow: none; border: 0; } }'}</style>
+          <section role="dialog" aria-modal="true" aria-labelledby="attendance-title" className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-slate-200 bg-white p-6 shadow-xl">
+            <header className="flex items-start justify-between gap-4">
+              <div><h2 id="attendance-title" className="text-lg font-semibold text-slate-900">Absensi</h2><p className="mt-1 text-sm text-slate-600">{attendanceEvent.judul}</p></div>
+              <button type="button" onClick={() => setAttendanceEvent(null)} aria-label="Tutup modal absensi" className="min-h-11 rounded-md border border-slate-300 px-3 text-sm focus-visible:ring-2 focus-visible:ring-slate-900">Tutup</button>
+            </header>
+            <div role="tablist" aria-label="Metode absensi" className="mt-5 flex border-b border-slate-200">
+              <button id="attendance-qr-tab" role="tab" aria-selected={attendanceTab === 'qr'} aria-controls="attendance-qr-panel" onClick={() => setAttendanceTab('qr')} className={`min-h-11 border-b-2 px-4 text-sm font-semibold ${attendanceTab === 'qr' ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-500'}`}>Absen dengan QR Code</button>
+              <button id="attendance-manual-tab" role="tab" aria-selected={attendanceTab === 'manual'} aria-controls="attendance-manual-panel" onClick={() => void openManualAttendance()} className={`min-h-11 border-b-2 px-4 text-sm font-semibold ${attendanceTab === 'manual' ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-500'}`}>Absen Manual Catat</button>
+            </div>
+            {attendanceTab === 'qr' ? (
+              <div id="attendance-qr-panel" role="tabpanel" aria-labelledby="attendance-qr-tab" className="py-5 text-center">
+                {qr ? <div id="attendance-qr-print"><p className="text-sm text-slate-600">Pindai untuk mengisi absensi peserta.</p><div className="mt-4 flex justify-center"><QRCodeSVG value={qr.url} size={240} level="M" marginSize={4} title={`QR absensi ${qr.title}`} /></div><a href={qr.url} target="_blank" rel="noreferrer" className="mt-4 block break-all text-xs text-slate-600 underline">{qr.url}</a></div> : <p className="text-sm text-slate-600">Buat QR untuk dibagikan atau dicetak.</p>}
+                {qrError && <p role="alert" className="mt-3 text-sm text-red-700">{qrError}</p>}
+                <button type="button" disabled={qrLoadingId !== null} onClick={() => void generateAttendanceQr()} className="mt-4 min-h-11 rounded-md bg-slate-900 px-4 text-sm font-semibold text-white disabled:opacity-60">{qrLoadingId === attendanceEvent.id ? 'Membuat QR...' : qr ? 'Buat QR Baru' : 'Buat QR Absensi'}</button>
+                {qr && <button type="button" onClick={() => window.print()} className="ml-2 min-h-11 rounded-md border border-slate-300 px-4 text-sm font-semibold">Cetak QR</button>}
+              </div>
+            ) : (
+              <div id="attendance-manual-panel" role="tabpanel" aria-labelledby="attendance-manual-tab" className="py-5">
+                {manualLoading ? <p role="status" className="text-sm text-slate-600">Memuat peserta...</p> : manualError && !manualEvent ? <p role="alert" className="text-sm text-red-700">{manualError}</p> : manualEvent?.participants.length ? <>
+                  <div className="max-h-80 overflow-y-auto rounded-md border border-slate-200">
+                    {manualEvent.participants.map((participant) => <div key={participant.nip} className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-3 py-3 last:border-0">
+                      <div><p className="text-sm font-medium text-slate-900">{participant.name ?? participant.nip}</p><p className="text-xs text-slate-500">{participant.nip}{participant.department ? ` · ${participant.department}` : ''}</p></div>
+                      <select aria-label={`Status absensi ${participant.name ?? participant.nip}`} value={manualStatuses[participant.nip] ?? participant.attendanceStatus} onChange={(event) => setManualStatuses((current) => { const next = { ...current }; if (event.target.value === 'not_recorded') delete next[participant.nip]; else next[participant.nip] = event.target.value as 'present' | 'absent'; return next; })} className={selectClass()}>
+                        {participant.attendanceStatus === 'not_recorded' && !manualStatuses[participant.nip] && <option value="not_recorded">Belum dicatat</option>}<option value="present">Hadir</option><option value="absent">Tidak hadir</option>
+                      </select>
+                    </div>)}
+                  </div>
+                  {manualError && <p role="alert" className="mt-3 text-sm text-red-700">{manualError}</p>}{manualNotice && <p role="status" className="mt-3 text-sm text-green-700">{manualNotice}</p>}
+                  <button type="button" disabled={manualSaving} onClick={() => void saveManualAttendance()} className="mt-4 min-h-11 rounded-md bg-slate-900 px-4 text-sm font-semibold text-white disabled:opacity-60">{manualSaving ? 'Menyimpan...' : 'Simpan Absensi'}</button>
+                </> : !manualLoading && !manualError ? <p className="text-sm text-slate-600">Belum ada peserta pada acara ini.</p> : null}
+              </div>
+            )}
+          </section>
+        </div>
       )}
     </div>
   );

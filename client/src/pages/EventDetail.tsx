@@ -102,7 +102,7 @@ export const EventDetail = () => {
         .filter((nip) => !event.participants.some((participant) => participant.nip === nip))
         .map((nip) => {
           const employee = employees.find((item) => item.nip === nip);
-          return { nip, name: employee?.name ?? nip, department: employee?.departId ?? null };
+          return { nip, name: employee?.name ?? nip, department: employee?.departId ?? null, attendanceStatus: 'not_recorded' as const };
         });
       setEvent({ ...event, participants: [...event.participants, ...added], pesertaCount: event.pesertaCount + result.added });
       setSelected([]);

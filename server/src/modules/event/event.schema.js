@@ -35,6 +35,13 @@ const optionalText = (max) =>
     .nullable()
     .optional();
 
+export const attendanceBody = z.object({
+  entries: z.array(z.object({ nip: z.string().trim().min(1).max(50), status: z.enum(['present', 'absent']) })).min(1).max(2000),
+}).superRefine(({ entries }, context) => {
+  const nips = entries.map(({ nip }) => nip);
+  if (new Set(nips).size !== nips.length) context.addIssue({ code: 'custom', path: ['entries'], message: 'Peserta duplikat.' });
+});
+
 export const createEventBody = z
   .object({
     judul: z.string().trim().min(1, 'Judul wajib diisi').max(200, 'Judul maksimal 200 karakter'),

@@ -1,5 +1,5 @@
 import sql from 'mssql';
-import { query } from '../../db/pool.js';
+import { query, transaction } from '../../db/pool.js';
 
 export const listEvents = async (actor, year, month) => {
   const { recordset } = await query(`
@@ -57,7 +57,7 @@ export const getEvent = async (eventId, actor) => {
            CONVERT(char(8), a.waktu_selesai, 108) AS waktu_selesai,
            a.sasaran, a.materi_pokok, a.ruang_id, r.nama_ruangan, a.status,
            t.trainer_type, t.trainer_name, t.trainer_nip,
-           p.participant_nip, p.participant_name, p.department_name, p.department_code
+           p.participant_nip, p.participant_name, p.department_name, p.department_code, p.attendance_status
     FROM dbo.training_acara a
     LEFT JOIN dbo.training_ruang_acara r ON r.id = a.ruang_id
     OUTER APPLY (SELECT TOP 1 trainer_type, trainer_name, trainer_nip FROM dbo.training_acara_trainer WHERE event_id = a.id ORDER BY is_primary DESC, id) t
@@ -81,9 +81,43 @@ export const getEvent = async (eventId, actor) => {
     pesertaCount: result.recordset.filter((row) => row.participant_nip).length,
     participants: result.recordset.filter((row) => row.participant_nip).map((row) => ({
       nip: row.participant_nip, name: row.participant_name, department: row.department_name ?? row.department_code,
+      attendanceStatus: row.attendance_status,
     })),
   };
 };
+
+export const recordAttendance = async (eventId, entries, actorNip) => transaction(async (request) => {
+  const missingNips = [];
+  for (const { nip } of entries) {
+    const participant = await request().input('eventId', sql.Int, eventId).input('nip', sql.NVarChar(50), nip)
+      .query('SELECT 1 AS found FROM dbo.training_peserta_acara WHERE event_id = @eventId AND participant_nip = @nip;');
+    if (!participant.recordset.length) missingNips.push(nip);
+  }
+  if (missingNips.length) return { recorded: 0, missingNips };
+  let recorded = 0;
+  for (const entry of entries) {
+    const updated = await request().input('eventId', sql.Int, eventId)
+      .input('nip', sql.NVarChar(50), entry.nip)
+      .input('status', sql.VarChar(20), entry.status)
+      .query(`UPDATE dbo.training_peserta_acara
+        SET attendance_status = @status, updated_at = SYSUTCDATETIME()
+        OUTPUT DELETED.attendance_status AS previous_status
+        WHERE event_id = @eventId AND participant_nip = @nip;`);
+    const previousStatus = updated.recordset[0]?.previous_status;
+    if (previousStatus === entry.status) continue;
+    await request().input('actorNip', sql.NVarChar(50), actorNip)
+      .input('eventId', sql.Int, eventId)
+      .input('nip', sql.NVarChar(50), entry.nip)
+      .input('previousStatus', sql.NVarChar(20), previousStatus)
+      .input('status', sql.NVarChar(20), entry.status)
+      .query(`INSERT INTO dbo.training_audit_log (actor_nip, action, entity_type, entity_id, result, metadata)
+        VALUES (@actorNip, N'manual_attendance_recorded', N'training_peserta_acara',
+          CONCAT(@eventId, N':', @nip), 'success',
+          (SELECT @previousStatus AS previousStatus, @status AS status FOR JSON PATH, WITHOUT_ARRAY_WRAPPER));`);
+    recorded++;
+  }
+  return { recorded, missingNips };
+});
 
 export const getMyEvents = async (actor) => {
   const { recordset } = await query(`

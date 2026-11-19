@@ -18,6 +18,30 @@ afterAll(
     new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve()))),
 );
 
+describe('PATCH /api/events/:id/attendance', () => {
+  it('rejects manual attendance updates without an access token', async () => {
+    const response = await fetch(`${baseUrl}/api/events/1/attendance`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entries: [{ nip: '123', status: 'present' }] }),
+    });
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toMatchObject({ error: { code: 'UNAUTHENTICATED' } });
+  });
+});
+
+describe('PATCH /api/events/:id/attendance', () => {
+  it('requires authentication before recording attendance', async () => {
+    const response = await fetch(`${baseUrl}/api/events/1/attendance`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entries: [{ nip: '123', status: 'present' }] }),
+    });
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toMatchObject({ error: { code: 'UNAUTHENTICATED' } });
+  });
+});
+
 describe('health endpoints', () => {
   it('returns liveness and a request id', async () => {
     const response = await fetch(`${baseUrl}/health/live`);
@@ -30,6 +54,19 @@ describe('health endpoints', () => {
     const response = await fetch(`${baseUrl}/health/ready`);
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toMatchObject({ status: 'degraded', service: 'training-api' });
+  });
+});
+
+describe('PATCH /api/events/:id/attendance', () => {
+  it('rejects manual attendance updates without an access token', async () => {
+    const response = await fetch(`${baseUrl}/api/events/1/attendance`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entries: [{ nip: '123', status: 'present' }] }),
+    });
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toMatchObject({ error: { code: 'UNAUTHENTICATED' } });
   });
 });
 
