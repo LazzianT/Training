@@ -63,6 +63,11 @@ export const createEvent = (token: string, body: CreateEventRequest) =>
 export const fetchEvent = (token: string, id: number) =>
   call<EventDetail>(`/api/events/${id}`, { headers: authHeaders(token) });
 
+export const saveAttendance = (token: string, eventId: number, entries: { nip: string; status: 'present' | 'absent' }[]) =>
+  call<{ recorded: number }>(`/api/events/${eventId}/attendance`, {
+    method: 'PATCH', headers: { ...authHeaders(token), 'Content-Type': 'application/json' }, body: JSON.stringify({ entries }),
+  });
+
 export const updateEvent = (token: string, id: number, body: CreateEventRequest) =>
   call<void>(`/api/events/${id}`, {
     method: 'PUT', headers: { ...authHeaders(token), 'Content-Type': 'application/json' }, body: JSON.stringify(body),

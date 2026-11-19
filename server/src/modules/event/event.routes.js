@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { authenticate } from '../../middleware/authenticate.js';
-import { addParticipants, createEvent, getEvent, getMyEvents, listEvents, listRooms, removeParticipant, updateEvent } from './event.repository.js';
-import { createEventBody, fieldErrors } from './event.schema.js';
+import { addParticipants, createEvent, getEvent, getMyEvents, listEvents, listRooms, recordAttendance, removeParticipant, updateEvent } from './event.repository.js';
+import { attendanceBody, createEventBody, fieldErrors } from './event.schema.js';
 
 const fail = (response, status, code, message, details) => {
   response.status(status).json({
@@ -12,7 +12,6 @@ const fail = (response, status, code, message, details) => {
 
 const eventId = z.coerce.number().int().positive();
 const participantsBody = z.object({ nips: z.array(z.string().trim().min(1).max(50)).min(1).max(2000) });
-
 export const eventRouter = Router();
 
 eventRouter.use(authenticate);
@@ -101,6 +100,19 @@ eventRouter.post('/:id/peserta', async (request, response, next) => {
   try {
     if (!await getEvent(parsedId.data, response.locals.actor)) return fail(response, 404, 'EVENT_NOT_FOUND', 'Acara tidak ditemukan.');
     response.status(201).json(await addParticipants(parsedId.data, body.data.nips));
+  } catch (error) { next(error); }
+});
+
+eventRouter.patch('/:id/attendance', async (request, response, next) => {
+  const parsedId = eventId.safeParse(request.params.id);
+  const body = attendanceBody.safeParse(request.body);
+  if (!parsedId.success || !body.success) return fail(response, 400, 'VALIDATION_ERROR', 'Daftar absensi tidak valid.', body.success ? undefined : fieldErrors(body.error));
+  try {
+    const event = await getEvent(parsedId.data, response.locals.actor);
+    if (!event) return fail(response, 404, 'EVENT_NOT_FOUND', 'Acara tidak ditemukan atau Anda tidak berwenang.');
+    const result = await recordAttendance(parsedId.data, body.data.entries, response.locals.actor.nip);
+    if (result.missingNips.length) return fail(response, 400, 'PARTICIPANT_NOT_FOUND', 'Sebagian NIP bukan peserta acara ini.', { nips: result.missingNips });
+    response.status(200).json({ recorded: result.recorded });
   } catch (error) { next(error); }
 });
 

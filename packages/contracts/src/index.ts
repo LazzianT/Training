@@ -111,6 +111,7 @@ export type EventParticipant = {
   nip: string;
   name: string | null;
   department: string | null;
+  attendanceStatus: 'not_recorded' | 'present' | 'absent';
 };
 
 export type EventDetail = EventSummary & {
